@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'constants.dart';
 
 class ThemeManager with ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
@@ -17,21 +18,21 @@ class ThemeManager with ChangeNotifier {
 // Light Theme
 final ThemeData lessonBuddyLightTheme = ThemeData(
   brightness: Brightness.light,
-  primaryColor: Colors.teal,
-  scaffoldBackgroundColor: Color(0xFFFAFAFA),
-  cardColor: Color(0xFFF5F5F5),
+  primaryColor: AppConstants.primaryColorLight,
+  scaffoldBackgroundColor: AppConstants.backgroundColorLight,
+  cardColor: AppConstants.cardColorLight,
   textTheme: TextTheme(
-    bodyLarge: TextStyle(color: Color(0xFF212121)),
-    bodyMedium: TextStyle(color: Color(0xFF616161)),
+    bodyLarge: TextStyle(color: AppConstants.textColorLight),
+    bodyMedium: TextStyle(color: AppConstants.textColorSecondaryLight),
   ),
   colorScheme: ColorScheme.light(
-    primary: Colors.teal,
-    secondary: Color(0xFF7E57C2),
-    surface: Color(0xFFF5F5F5),
+    primary: AppConstants.primaryColorLight,
+    secondary: AppConstants.accentColorLight,
+    surface: AppConstants.cardColorLight,
     error: Color(0xFFE57373),
     onPrimary: Colors.white,
     onSecondary: Colors.white,
-    onSurface: Color(0xFF212121),
+    onSurface: AppConstants.textColorLight,
     onError: Colors.white,
   ),
 );
@@ -39,21 +40,21 @@ final ThemeData lessonBuddyLightTheme = ThemeData(
 // Dark Theme
 final ThemeData lessonBuddyDarkTheme = ThemeData(
   brightness: Brightness.dark,
-  primaryColor: Color(0xFF26D7AE),
-  scaffoldBackgroundColor: Color(0xFF121212),
-  cardColor: Color(0xFF1E1E1E),
+  primaryColor: AppConstants.primaryColorDark,
+  scaffoldBackgroundColor: AppConstants.backgroundColorDark,
+  cardColor: AppConstants.cardColorDark,
   textTheme: TextTheme(
-    bodyLarge: TextStyle(color: Color(0xFFECECEC)),
-    bodyMedium: TextStyle(color: Color(0xFFB0B0B0)),
+    bodyLarge: TextStyle(color: AppConstants.textColorDark),
+    bodyMedium: TextStyle(color: AppConstants.textColorSecondaryDark),
   ),
   colorScheme: ColorScheme.dark(
-    primary: Color(0xFF26D7AE),
-    secondary: Color(0xFFB388FF),
-    surface: Color(0xFF1E1E1E),
+    primary: AppConstants.primaryColorDark,
+    secondary: AppConstants.accentColorDark,
+    surface: AppConstants.cardColorDark,
     error: Color(0xFFFF8A80),
     onPrimary: Colors.black,
     onSecondary: Colors.black,
-    onSurface: Color(0xFFECECEC),
+    onSurface: AppConstants.textColorDark,
     onError: Colors.black,
   ),
 );

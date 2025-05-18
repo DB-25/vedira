@@ -2,30 +2,32 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/course.dart';
 import '../models/lesson.dart';
+import '../utils/constants.dart';
 
 class ApiService {
   // Base URL for the API
-  final String baseUrl =
-      'https://rgml14alw6.execute-api.us-east-1.amazonaws.com';
+  final String baseUrl = AppConstants.apiBaseUrl;
 
-  // API endpoints
-  String get courseListEndpoint => '$baseUrl/get-course-list';
 
   // Get all courses from API
-  Future<List<Course>> getCourseList({String userId = 'rs'}) async {
+  Future<List<Course>> getCourseList({
+    String userId = AppConstants.defaultUserId,
+  }) async {
     try {
       final response = await http.get(
-        Uri.parse('$courseListEndpoint?user_id=$userId'),
+        Uri.parse('$baseUrl/get-course-list?user_id=$userId'),
       );
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         return data.map((courseJson) => Course.fromJson(courseJson)).toList();
       } else {
-        throw Exception('Failed to load courses: ${response.statusCode}');
+        throw Exception(
+          '${AppConstants.errorLoadingCourses} Status: ${response.statusCode}',
+        );
       }
     } catch (e) {
-      throw Exception('Error fetching courses: $e');
+      throw Exception('${AppConstants.errorLoadingCourses} Details: $e');
     }
   }
 
@@ -74,7 +76,7 @@ class ApiService {
     try {
       return courses.firstWhere((course) => course.courseID == id);
     } catch (e) {
-      throw Exception('Course not found with ID: $id');
+      throw Exception(AppConstants.errorCourseNotFound);
     }
   }
 
