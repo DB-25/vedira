@@ -1,44 +1,49 @@
 import 'lesson.dart';
 
 class Course {
-  final String id;
+  final String courseID;
   final String title;
   final String description;
-  final List<Lesson> lessons;
   final String author;
-  final DateTime createdAt;
+  final List<Lesson>? lessons;
+  final DateTime? createdAt;
 
   Course({
-    required this.id,
+    required this.courseID,
     required this.title,
     required this.description,
-    required this.lessons,
     required this.author,
-    required this.createdAt,
+    this.lessons,
+    this.createdAt,
   });
 
   factory Course.fromJson(Map<String, dynamic> json) {
     return Course(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      description: json['description'] as String,
+      courseID: json['courseID'] ?? json['id'] ?? '',
+      title: json['title'] ?? '',
+      description: json['description'] ?? '',
+      author: json['author'] ?? 'Unknown',
       lessons:
-          (json['lessons'] as List)
-              .map((lesson) => Lesson.fromJson(lesson))
-              .toList(),
-      author: json['author'] as String,
-      createdAt: DateTime.parse(json['createdAt'] as String),
+          json['lessons'] != null
+              ? (json['lessons'] as List)
+                  .map((lesson) => Lesson.fromJson(lesson))
+                  .toList()
+              : null,
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.tryParse(json['createdAt'])
+              : null,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      'courseID': courseID,
       'title': title,
       'description': description,
-      'lessons': lessons.map((lesson) => lesson.toJson()).toList(),
       'author': author,
-      'createdAt': createdAt.toIso8601String(),
+      'lessons': lessons?.map((lesson) => lesson.toJson()).toList(),
+      'createdAt': createdAt?.toIso8601String(),
     };
   }
 }

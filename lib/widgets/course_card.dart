@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/course.dart';
+import '../screens/course_details_screen.dart';
 
 class CourseCard extends StatelessWidget {
   final Course? course;
@@ -11,6 +12,10 @@ class CourseCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    if (course == null) {
+      return const SizedBox.shrink();
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16.0),
       elevation: 2,
@@ -21,7 +26,7 @@ class CourseCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              course?.title ?? 'Course Title Placeholder',
+              course!.title,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -29,21 +34,14 @@ class CourseCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              course?.description ??
-                  'Course description placeholder. This would contain details about the course.',
-              style: theme.textTheme.bodyMedium,
-            ),
+            Text(course!.description, style: theme.textTheme.bodyMedium),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                Text('By ${course!.author}', style: theme.textTheme.bodyMedium),
                 Text(
-                  'By ${course?.author ?? 'Author'}',
-                  style: theme.textTheme.bodyMedium,
-                ),
-                Text(
-                  '${course?.lessons.length ?? 0} lessons',
+                  '${course!.lessons?.length ?? 0} lessons',
                   style: theme.textTheme.bodyMedium,
                 ),
               ],
@@ -51,7 +49,14 @@ class CourseCard extends StatelessWidget {
             const SizedBox(height: 8),
             ElevatedButton(
               onPressed: () {
-                // Navigate to course details
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (context) =>
+                            CourseDetailsScreen(courseId: course!.courseID),
+                  ),
+                );
               },
               style: ElevatedButton.styleFrom(
                 foregroundColor: colorScheme.onPrimary,
