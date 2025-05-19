@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/course.dart';
+import '../screens/create_course_screen.dart';
 import '../services/api_service.dart';
 import '../utils/theme_manager.dart';
+import '../utils/logger.dart';
 import '../widgets/course_card.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -16,26 +18,44 @@ class _HomeScreenState extends State<HomeScreen> {
   final ApiService _apiService = ApiService();
   late Future<List<Course>> _coursesFuture;
   bool _isLoading = false;
+  final String _tag = 'HomeScreen';
 
   @override
   void initState() {
     super.initState();
+    Logger.i(_tag, 'Screen initialized');
     _loadCourses();
   }
 
+  @override
+  void dispose() {
+    Logger.i(_tag, 'Screen disposed');
+    super.dispose();
+  }
+
   Future<void> _loadCourses() async {
+    Logger.i(_tag, 'Loading course list');
     setState(() {
       _coursesFuture = _apiService.getCourseList();
     });
   }
 
   Future<void> _refreshCourses() async {
+    Logger.i(_tag, 'Refreshing course list');
     setState(() {
       _isLoading = true;
     });
 
     try {
       await _loadCourses();
+      Logger.i(_tag, 'Course list refreshed successfully');
+    } catch (e) {
+      Logger.e(
+        _tag,
+        'Error refreshing courses',
+        error: e,
+        stackTrace: StackTrace.current,
+      );
     } finally {
       setState(() {
         _isLoading = false;
@@ -54,8 +74,10 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             icon: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
-            onPressed: () {
-              themeManager.toggleTheme();
+            onPressed: () async {
+              final newMode = !isDarkMode ? 'dark' : 'light';
+              Logger.i(_tag, 'User requested theme change to $newMode mode');
+              await themeManager.toggleTheme();
             },
             tooltip:
                 isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
@@ -69,8 +91,16 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting ||
                 _isLoading) {
+              Logger.d(_tag, 'Loading courses...');
               return const Center(child: CircularProgressIndicator());
             } else if (snapshot.hasError) {
+              final error = snapshot.error;
+              Logger.e(
+                _tag,
+                'Error loading courses',
+                error: error,
+                stackTrace: StackTrace.current,
+              );
               return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -87,19 +117,26 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      snapshot.error.toString(),
+                      error.toString(),
                       style: Theme.of(context).textTheme.bodyMedium,
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton(
-                      onPressed: _refreshCourses,
+                      onPressed: () {
+                        Logger.i(
+                          _tag,
+                          'User trying to reload courses after error',
+                        );
+                        _refreshCourses();
+                      },
                       child: const Text('Try Again'),
                     ),
                   ],
                 ),
               );
             } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              Logger.w(_tag, 'No courses available');
               return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -116,7 +153,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton(
-                      onPressed: _refreshCourses,
+                      onPressed: () {
+                        Logger.i(_tag, 'User refreshing empty course list');
+                        _refreshCourses();
+                      },
                       child: const Text('Refresh'),
                     ),
                   ],
@@ -125,11 +165,14 @@ class _HomeScreenState extends State<HomeScreen> {
             }
 
             final courses = snapshot.data!;
+            Logger.i(_tag, 'Loaded ${courses.length} courses');
             return ListView.builder(
               padding: const EdgeInsets.all(16.0),
               itemCount: courses.length,
               itemBuilder: (context, index) {
-                return CourseCard(course: courses[index]);
+                final course = courses[index];
+                Logger.v(_tag, 'Rendering course: ${course.title}');
+                return CourseCard(course: course);
               },
             );
           },
@@ -137,7 +180,11 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Navigate to create course screen
+          Logger.i(_tag, 'User navigating to create course screen');
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const CreateCourseScreen()),
+          );
         },
         child: const Icon(Icons.add),
       ),

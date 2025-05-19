@@ -16,13 +16,41 @@ class Lesson {
   });
 
   factory Lesson.fromJson(Map<String, dynamic> json) {
+    // Handle resources field that might be a list of strings or a list of objects with url property
+    List<String> parseResources() {
+      if (json['resources'] == null) return [];
+
+      try {
+        if (json['resources'] is List) {
+          return (json['resources'] as List)
+              .map((resource) {
+                if (resource is String) {
+                  return resource;
+                } else if (resource is Map && resource.containsKey('url')) {
+                  return resource['url'] as String;
+                }
+                return '';
+              })
+              .where((url) => url.isNotEmpty)
+              .toList();
+        }
+      } catch (e) {
+        print('Error parsing resources: $e');
+      }
+      return [];
+    }
+
     return Lesson(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      content: json['content'] as String,
-      resources: List<String>.from(json['resources']),
-      order: json['order'] as int,
-      sectionId: json['sectionId'] as String,
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? 'Untitled Lesson',
+      content: json['content']?.toString() ?? '',
+      resources: parseResources(),
+      order:
+          json['order'] is int
+              ? json['order']
+              : int.tryParse(json['order']?.toString() ?? '0') ?? 0,
+      sectionId:
+          json['sectionId']?.toString() ?? json['section_id']?.toString() ?? '',
     );
   }
 
@@ -35,5 +63,24 @@ class Lesson {
       'order': order,
       'sectionId': sectionId,
     };
+  }
+
+  // Create a copy of this lesson with modified fields
+  Lesson copyWith({
+    String? id,
+    String? title,
+    String? content,
+    List<String>? resources,
+    int? order,
+    String? sectionId,
+  }) {
+    return Lesson(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      content: content ?? this.content,
+      resources: resources ?? this.resources,
+      order: order ?? this.order,
+      sectionId: sectionId ?? this.sectionId,
+    );
   }
 }

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/course.dart';
 import '../screens/course_details_screen.dart';
+import '../utils/logger.dart';
 
 class CourseCard extends StatelessWidget {
   final Course? course;
+  final String _tag = 'CourseCard';
 
   const CourseCard({super.key, this.course});
 
@@ -14,6 +16,13 @@ class CourseCard extends StatelessWidget {
 
     if (course == null) {
       return const SizedBox.shrink();
+    }
+
+    // Debug log to check course ID
+    if (course!.courseID.isEmpty) {
+      Logger.e(_tag, 'Empty courseID detected in CourseCard: ${course!.title}');
+    } else {
+      Logger.d(_tag, 'CourseCard has valid courseID: ${course!.courseID}');
     }
 
     return Card(
@@ -49,6 +58,12 @@ class CourseCard extends StatelessWidget {
             const SizedBox(height: 8),
             ElevatedButton(
               onPressed: () {
+                // Add debug log right before navigation
+                Logger.i(
+                  _tag,
+                  'Navigating to course details with ID: ${course!.courseID}',
+                );
+
                 Navigator.push(
                   context,
                   MaterialPageRoute(

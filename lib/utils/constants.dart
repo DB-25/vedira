@@ -46,6 +46,8 @@ class AppConstants {
   static const String errorLoadingCourses =
       'Unable to load courses. Please check your connection and try again.';
   static const String errorCourseNotFound = 'Course not found.';
+  static const String errorGeneratingCourse =
+      'Error generating course. Please try again later.';
   static const String noCoursesAvailable =
       'No courses available at the moment.';
   static const String noLessonsAvailable =
@@ -63,4 +65,10 @@ class AppConstants {
       false; // Set to true when create course feature is implemented
   static const bool enableUserAuthentication =
       false; // Set to true when authentication is implemented
+
+  // Course Generation
+  static const String generatingCourseMessage = 'Generating course plan...';
+  static const String generatingCourseSubMessage =
+      'This may take a few minutes.';
+  static const String generatingCourseCancelMessage = 'Cancel';
 }
