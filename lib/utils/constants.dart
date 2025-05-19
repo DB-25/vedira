@@ -52,6 +52,8 @@ class AppConstants {
       'No courses available at the moment.';
   static const String noLessonsAvailable =
       'No lessons available for this course.';
+  static const String errorNoInternet =
+      'No internet connection. Please check your connection and try again.';
 
   // Route Names
   static const String homeRoute = '/home';

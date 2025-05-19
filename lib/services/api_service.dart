@@ -6,11 +6,13 @@ import '../models/course.dart';
 import '../models/lesson_plan.dart';
 import '../utils/constants.dart';
 import '../utils/logger.dart';
+import 'connectivity_service.dart';
 
 class ApiService {
   // Base URL for the API
   final String baseUrl = AppConstants.apiBaseUrl;
   final String _tag = 'ApiService';
+  final ConnectivityService _connectivityService = ConnectivityService();
 
   // Get all courses from API
   Future<List<Course>> getCourseList({
@@ -20,6 +22,14 @@ class ApiService {
     final url = '$baseUrl$endpoint';
 
     Logger.i(_tag, 'Fetching course list for user: $userId');
+
+    // Check if internet is available
+    bool isConnected = await _connectivityService.isInternetAvailable();
+    if (!isConnected) {
+      final error = '${AppConstants.errorNoInternet}';
+      Logger.e(_tag, error);
+      throw Exception(error);
+    }
 
     try {
       final response = await http.get(Uri.parse(url));
@@ -58,6 +68,14 @@ class ApiService {
     String? customInstructions,
     String userId = AppConstants.defaultUserId,
   }) async {
+    // Check if internet is available
+    bool isConnected = await _connectivityService.isInternetAvailable();
+    if (!isConnected) {
+      final error = '${AppConstants.errorNoInternet}';
+      Logger.e(_tag, error);
+      throw Exception(error);
+    }
+
     final endpoint = '/generate-lesson-plan';
     final url = '$baseUrl$endpoint';
 
@@ -121,6 +139,14 @@ class ApiService {
     if (id.isEmpty) {
       Logger.e(_tag, 'Empty course ID provided to getCourse method');
       throw Exception('Course ID cannot be empty');
+    }
+
+    // Check if internet is available
+    bool isConnected = await _connectivityService.isInternetAvailable();
+    if (!isConnected) {
+      final error = '${AppConstants.errorNoInternet}';
+      Logger.e(_tag, error);
+      throw Exception(error);
     }
 
     final endpoint = '/get-lesson-plan?course_id=$id&user_id=$userId';
@@ -201,6 +227,14 @@ class ApiService {
     required String lessonId,
     String userId = AppConstants.defaultUserId,
   }) async {
+    // Check if internet is available
+    bool isConnected = await _connectivityService.isInternetAvailable();
+    if (!isConnected) {
+      final error = '${AppConstants.errorNoInternet}';
+      Logger.e(_tag, error);
+      throw Exception(error);
+    }
+
     final endpoint =
         '/get-lesson-content?course_id=$courseId&user_id=$userId&chapter_id=$chapterId&lesson_id=$lessonId';
     final url = '$baseUrl$endpoint';
@@ -257,6 +291,14 @@ class ApiService {
     required String chapterId,
     String userId = AppConstants.defaultUserId,
   }) async {
+    // Check if internet is available
+    bool isConnected = await _connectivityService.isInternetAvailable();
+    if (!isConnected) {
+      final error = '${AppConstants.errorNoInternet}';
+      Logger.e(_tag, error);
+      throw Exception(error);
+    }
+
     final endpoint = '/generate-chapter';
     final url = '$baseUrl$endpoint';
 
@@ -309,5 +351,10 @@ class ApiService {
       Logger.e(_tag, error, error: e, stackTrace: StackTrace.current);
       throw Exception(error);
     }
+  }
+
+  // Dispose service when no longer needed
+  void dispose() {
+    _connectivityService.dispose();
   }
 }
