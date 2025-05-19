@@ -193,4 +193,121 @@ class ApiService {
     );
     return true;
   }
+
+  // Get lesson content from API
+  Future<String> getLessonContent({
+    required String courseId,
+    required String chapterId,
+    required String lessonId,
+    String userId = AppConstants.defaultUserId,
+  }) async {
+    final endpoint =
+        '/get-lesson-content?course_id=$courseId&user_id=$userId&chapter_id=$chapterId&lesson_id=$lessonId';
+    final url = '$baseUrl$endpoint';
+
+    Logger.i(
+      _tag,
+      'Fetching lesson content',
+      data: {
+        'courseId': courseId,
+        'chapterId': chapterId,
+        'lessonId': lessonId,
+        'userId': userId,
+      },
+    );
+
+    try {
+      final response = await http.get(Uri.parse(url));
+
+      Logger.api(
+        'GET',
+        endpoint,
+        statusCode: response.statusCode,
+        responseBody:
+            response.body.length > 100
+                ? '${response.body.substring(0, 100)}...'
+                : response.body,
+      );
+
+      if (response.statusCode == 200) {
+        // The API returns the lesson content as a plain string (Markdown format)
+        final String content = response.body;
+        Logger.d(
+          _tag,
+          'Lesson content fetched successfully',
+          data: {'contentLength': content.length},
+        );
+        return content;
+      } else {
+        final error =
+            'Error fetching lesson content: Status ${response.statusCode}';
+        Logger.e(_tag, error, error: response.body);
+        throw Exception(error);
+      }
+    } catch (e) {
+      final error = 'Error fetching lesson content: $e';
+      Logger.e(_tag, error, error: e, stackTrace: StackTrace.current);
+      throw Exception(error);
+    }
+  }
+
+  // Generate chapter content
+  Future<Map<String, dynamic>> generateChapter({
+    required String courseId,
+    required String chapterId,
+    String userId = AppConstants.defaultUserId,
+  }) async {
+    final endpoint = '/generate-chapter';
+    final url = '$baseUrl$endpoint';
+
+    final body = {
+      'course_id': courseId,
+      'user_id': userId,
+      'chapter_id': chapterId,
+    };
+
+    Logger.i(
+      _tag,
+      'Triggering chapter content generation',
+      data: {'courseId': courseId, 'chapterId': chapterId, 'userId': userId},
+    );
+
+    try {
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      );
+
+      Logger.api(
+        'POST',
+        endpoint,
+        requestBody: body,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+
+      if (response.statusCode == 200) {
+        final result = json.decode(response.body);
+        Logger.i(
+          _tag,
+          'Chapter generation triggered successfully',
+          data: {
+            'executionArn': result['executionArn'],
+            'startDate': result['startDate'],
+          },
+        );
+        return result;
+      } else {
+        final error =
+            'Error triggering chapter generation: Status ${response.statusCode}';
+        Logger.e(_tag, error, error: response.body);
+        throw Exception(error);
+      }
+    } catch (e) {
+      final error = 'Error triggering chapter generation: $e';
+      Logger.e(_tag, error, error: e, stackTrace: StackTrace.current);
+      throw Exception(error);
+    }
+  }
 }

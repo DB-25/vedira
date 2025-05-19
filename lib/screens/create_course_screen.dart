@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../models/course.dart';
 import '../screens/course_details_screen.dart';
 import '../services/api_service.dart';
 import '../utils/constants.dart';

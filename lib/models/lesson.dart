@@ -5,6 +5,8 @@ class Lesson {
   final List<String> resources;
   final int order;
   final String sectionId;
+  final bool completed;
+  final bool generated;
 
   Lesson({
     required this.id,
@@ -13,6 +15,8 @@ class Lesson {
     required this.resources,
     required this.order,
     required this.sectionId,
+    this.completed = false,
+    this.generated = true,
   });
 
   factory Lesson.fromJson(Map<String, dynamic> json) {
@@ -51,6 +55,8 @@ class Lesson {
               : int.tryParse(json['order']?.toString() ?? '0') ?? 0,
       sectionId:
           json['sectionId']?.toString() ?? json['section_id']?.toString() ?? '',
+      completed: json['completed'] == true,
+      generated: json['generated'] != false, // Default to true if not specified
     );
   }
 
@@ -62,6 +68,8 @@ class Lesson {
       'resources': resources,
       'order': order,
       'sectionId': sectionId,
+      'completed': completed,
+      'generated': generated,
     };
   }
 
@@ -73,6 +81,8 @@ class Lesson {
     List<String>? resources,
     int? order,
     String? sectionId,
+    bool? completed,
+    bool? generated,
   }) {
     return Lesson(
       id: id ?? this.id,
@@ -81,6 +91,8 @@ class Lesson {
       resources: resources ?? this.resources,
       order: order ?? this.order,
       sectionId: sectionId ?? this.sectionId,
+      completed: completed ?? this.completed,
+      generated: generated ?? this.generated,
     );
   }
 }

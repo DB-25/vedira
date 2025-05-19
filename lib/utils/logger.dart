@@ -5,14 +5,14 @@ import 'package:flutter/foundation.dart';
 /// This logger supports different log levels and formatted output.
 class Logger {
   // Log levels
-  static const int VERBOSE = 0;
-  static const int DEBUG = 1;
-  static const int INFO = 2;
-  static const int WARNING = 3;
-  static const int ERROR = 4;
+  static const int verbose = 0;
+  static const int debug = 1;
+  static const int info = 2;
+  static const int warning = 3;
+  static const int error = 4;
 
   // Current log level - adjust to filter logs
-  static int _currentLevel = kDebugMode ? VERBOSE : INFO;
+  static int _currentLevel = kDebugMode ? verbose : info;
 
   // Enable or disable logging completely
   static bool _enabled = true;
@@ -30,17 +30,17 @@ class Logger {
 
   /// Logs a message at the VERBOSE level.
   static void v(String tag, String message, {Object? data}) {
-    _log(VERBOSE, tag, message, data: data);
+    _log(verbose, tag, message, data: data);
   }
 
   /// Logs a message at the DEBUG level.
   static void d(String tag, String message, {Object? data}) {
-    _log(DEBUG, tag, message, data: data);
+    _log(debug, tag, message, data: data);
   }
 
   /// Logs a message at the INFO level.
   static void i(String tag, String message, {Object? data}) {
-    _log(INFO, tag, message, data: data);
+    _log(info, tag, message, data: data);
   }
 
   /// Logs a message at the WARNING level.
@@ -50,7 +50,7 @@ class Logger {
     Object? data,
     StackTrace? stackTrace,
   }) {
-    _log(WARNING, tag, message, data: data, stackTrace: stackTrace);
+    _log(warning, tag, message, data: data, stackTrace: stackTrace);
   }
 
   /// Logs a message at the ERROR level.
@@ -60,7 +60,7 @@ class Logger {
     Object? error,
     StackTrace? stackTrace,
   }) {
-    _log(ERROR, tag, message, data: error, stackTrace: stackTrace);
+    _log(Logger.error, tag, message, data: error, stackTrace: stackTrace);
   }
 
   /// Logs an API request/response with detailed formatting.
@@ -72,16 +72,15 @@ class Logger {
     int? statusCode,
     Object? error,
   }) {
-    if (!_shouldLog(INFO)) return;
+    if (!_shouldLog(info)) return;
 
     final divider =
         '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
-    final timestamp = DateTime.now().toIso8601String();
 
     final buffer = StringBuffer();
     buffer.write('\n$divider\n');
     buffer.write('📡 API CALL: $method $endpoint\n');
-    buffer.write('⏱️ TIMESTAMP: $timestamp\n');
+    buffer.write('⏱️ TIMESTAMP: ${DateTime.now().toIso8601String()}\n');
 
     if (requestBody != null) {
       buffer.write('📦 REQUEST BODY:\n');
@@ -149,26 +148,25 @@ class Logger {
 
     String emoji;
     switch (level) {
-      case VERBOSE:
+      case verbose:
         emoji = '🔍';
         break;
-      case DEBUG:
+      case debug:
         emoji = '🐛';
         break;
-      case INFO:
+      case info:
         emoji = 'ℹ️';
         break;
-      case WARNING:
+      case warning:
         emoji = '⚠️';
         break;
-      case ERROR:
+      case error:
         emoji = '❌';
         break;
       default:
-        emoji = '📝';
+        emoji = '��';
     }
 
-    final timestamp = DateTime.now().toIso8601String();
     final buffer = StringBuffer();
 
     buffer.write('$emoji [$tag] $message');

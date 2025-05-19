@@ -8,7 +8,9 @@ import '../utils/logger.dart';
 import '../widgets/course_card.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final Future<List<Course>>? preloadedCourses;
+
+  const HomeScreen({super.key, this.preloadedCourses});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -24,7 +26,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     Logger.i(_tag, 'Screen initialized');
-    _loadCourses();
+
+    if (widget.preloadedCourses != null) {
+      Logger.i(_tag, 'Using preloaded courses from splash screen');
+      _coursesFuture = widget.preloadedCourses!;
+    } else {
+      Logger.i(_tag, 'No preloaded courses, loading course list');
+      _loadCourses();
+    }
   }
 
   @override

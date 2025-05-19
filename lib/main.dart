@@ -11,7 +11,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize logger
-  Logger.setLevel(Logger.INFO);
+  Logger.setLevel(Logger.info);
   Logger.i('App', 'Starting LessonBuddy app');
 
   // Initialize SharedPreferences

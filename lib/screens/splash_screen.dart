@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/course.dart';
+import '../services/api_service.dart';
 import '../utils/theme_manager.dart';
 import '../utils/logger.dart';
 import 'home_screen.dart';
@@ -15,70 +17,64 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
   final String _tag = 'SplashScreen';
   bool _initialized = false;
+  final ApiService _apiService = ApiService();
+  late Future<List<Course>> _coursesFuture;
 
   @override
   void initState() {
     super.initState();
     Logger.i(_tag, 'Initializing splash screen');
+    // Preload courses while initializing app
+    _coursesFuture = _apiService.getCourseList();
     _initializeApp();
   }
 
   Future<void> _initializeApp() async {
     final themeManager = Provider.of<ThemeManager>(context, listen: false);
 
-    // Wait for a minimum display time
-    final minSplashTime = Future.delayed(const Duration(milliseconds: 1500));
-
     Logger.i(_tag, 'Waiting for theme to initialize');
 
-    // First try using the Future-based initialization
+    // Wait for theme initialization
     bool isThemeReady = false;
     try {
-      await themeManager.initialized.timeout(
-        const Duration(seconds: 2),
-        onTimeout: () {
-          Logger.w(_tag, 'Theme initialization timed out, will check manually');
-          return;
-        },
-      );
+      await themeManager.initialized;
       isThemeReady = true;
-      Logger.i(_tag, 'Theme initialized successfully via Future');
+      Logger.i(_tag, 'Theme initialized successfully');
     } catch (e) {
-      Logger.e(_tag, 'Error during theme initialization via Future', error: e);
-      // Continue below with property check
+      Logger.e(_tag, 'Error during theme initialization', error: e);
+      // Check if it's ready anyway
+      isThemeReady = themeManager.isInitialized;
+      if (isThemeReady) {
+        Logger.i(_tag, 'Theme was already initialized');
+      }
     }
 
-    // If the Future-based approach failed, use polling with the property
+    // If theme isn't ready yet, wait for it to be ready
     if (!isThemeReady) {
-      Logger.i(_tag, 'Falling back to polling isInitialized property');
-      int attempts = 0;
-      const maxAttempts = 30;
-
-      while (!themeManager.isInitialized && attempts < maxAttempts) {
-        await Future.delayed(const Duration(milliseconds: 100));
-        attempts++;
+      Logger.i(_tag, 'Waiting for theme manager to complete initialization');
+      while (!themeManager.isInitialized) {
+        await Future.delayed(const Duration(milliseconds: 50));
+        if (!mounted) return;
       }
-
-      if (themeManager.isInitialized) {
-        Logger.i(
-          _tag,
-          'Theme initialized after $attempts polls (${attempts * 100}ms)',
-        );
-        isThemeReady = true;
-      } else {
-        Logger.w(
-          _tag,
-          'Theme initialization timed out after $attempts polls, proceeding anyway',
-        );
-      }
+      Logger.i(_tag, 'Theme is now initialized');
     }
 
-    // Make sure the minimum splash time has elapsed
-    await minSplashTime;
+    // Wait for courses to load
+    List<Course> courses = [];
+    try {
+      courses = await _coursesFuture;
+      Logger.i(_tag, 'Preloaded ${courses.length} courses successfully');
+    } catch (e) {
+      Logger.e(_tag, 'Error preloading courses', error: e);
+      // Continue with empty courses list
+    }
 
     if (!mounted) return;
 
-    Logger.i(_tag, 'App initialization complete, navigating to HomeScreen');
+    Logger.i(
+      _tag,
+      'App initialization complete, navigating to HomeScreen with preloaded courses',
+    );
     setState(() {
       _initialized = true;
     });
@@ -95,7 +91,9 @@ class _SplashScreenState extends State<SplashScreen> {
       // Use a post-frame callback to navigate after the current frame completes
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(preloadedCourses: _coursesFuture),
+          ),
         );
       });
     }

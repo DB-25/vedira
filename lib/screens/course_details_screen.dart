@@ -272,13 +272,13 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                   Icon(
                     Icons.calendar_today,
                     size: 16,
-                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    color: theme.colorScheme.onSurface.withAlpha(153),
                   ),
                   const SizedBox(width: 4),
                   Text(
                     'Created: ${_formatDate(course.createdAt!)}',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      color: theme.colorScheme.onSurface.withAlpha(153),
                     ),
                   ),
                 ],
@@ -330,7 +330,11 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: section.lessons.length,
                   itemBuilder: (context, lessonIndex) {
-                    return LessonTile(lesson: section.lessons[lessonIndex]);
+                    return LessonTile(
+                      lesson: section.lessons[lessonIndex],
+                      courseId: widget.courseId,
+                      onRefreshNeeded: _handleRefresh,
+                    );
                   },
                 ),
             ],
@@ -368,7 +372,11 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
               physics: const NeverScrollableScrollPhysics(),
               itemCount: course.lessons!.length,
               itemBuilder: (context, lessonIndex) {
-                return LessonTile(lesson: course.lessons![lessonIndex]);
+                return LessonTile(
+                  lesson: course.lessons![lessonIndex],
+                  courseId: widget.courseId,
+                  onRefreshNeeded: _handleRefresh,
+                );
               },
             ),
         ],
