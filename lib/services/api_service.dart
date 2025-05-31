@@ -76,7 +76,7 @@ class ApiService {
       throw Exception(error);
     }
 
-    final endpoint = '/generate-lesson-plan';
+    final endpoint = '/generate-course-plan';
     final url = '$baseUrl$endpoint';
 
     final body = {
@@ -149,7 +149,7 @@ class ApiService {
       throw Exception(error);
     }
 
-    final endpoint = '/get-lesson-plan?course_id=$id&user_id=$userId';
+    final endpoint = '/get-course-plan?course_id=$id&user_id=$userId';
     final url = '$baseUrl$endpoint';
 
     Logger.i(_tag, 'Fetching course details for ID: "$id", user ID: "$userId"');
@@ -220,8 +220,8 @@ class ApiService {
     return true;
   }
 
-  // Get lesson content from API
-  Future<String> getLessonContent({
+  // Get lesson content from API - returns structured data for pagination
+  Future<Map<String, String>> getLessonContent({
     required String courseId,
     required String chapterId,
     required String lessonId,
@@ -264,14 +264,47 @@ class ApiService {
       );
 
       if (response.statusCode == 200) {
-        // The API returns the lesson content as a plain string (Markdown format)
-        final String content = response.body;
-        Logger.d(
-          _tag,
-          'Lesson content fetched successfully',
-          data: {'contentLength': content.length},
-        );
-        return content;
+        // The API returns lesson content as JSON with multiple key-value pairs for pagination
+        try {
+          final Map<String, dynamic> data = json.decode(response.body);
+
+          if (data.isEmpty) {
+            throw Exception('No lesson content found in response');
+          }
+
+          // Convert all values to strings and return the complete structure
+          final Map<String, String> contentSections = {};
+          data.forEach((key, value) {
+            contentSections[key] = value.toString();
+          });
+
+          Logger.d(
+            _tag,
+            'Lesson content fetched successfully',
+            data: {
+              'sectionsCount': contentSections.length,
+              'sectionKeys': contentSections.keys.toList(),
+              'totalContentLength': contentSections.values.fold<int>(
+                0,
+                (sum, content) => sum + content.length,
+              ),
+            },
+          );
+          return contentSections;
+        } catch (e) {
+          // If JSON parsing fails, fall back to treating it as plain text with single section
+          Logger.w(
+            _tag,
+            'Failed to parse lesson content as JSON, treating as plain text: $e',
+          );
+          final String content = response.body;
+          Logger.d(
+            _tag,
+            'Lesson content fetched as plain text',
+            data: {'contentLength': content.length},
+          );
+          return {'content': content};
+        }
       } else {
         final error =
             'Error fetching lesson content: Status ${response.statusCode}';
@@ -348,6 +381,63 @@ class ApiService {
       }
     } catch (e) {
       final error = 'Error triggering chapter generation: $e';
+      Logger.e(_tag, error, error: e, stackTrace: StackTrace.current);
+      throw Exception(error);
+    }
+  }
+
+  // Check chapter generation status
+  Future<Map<String, dynamic>> checkChapterGenerationStatus({
+    required String executionArn,
+  }) async {
+    // Check if internet is available
+    bool isConnected = await _connectivityService.isInternetAvailable();
+    if (!isConnected) {
+      final error = '${AppConstants.errorNoInternet}';
+      Logger.e(_tag, error);
+      throw Exception(error);
+    }
+
+    final endpoint =
+        '/check-chapter-generation-status?executionArn=$executionArn';
+    final url = '$baseUrl$endpoint';
+
+    Logger.d(
+      _tag,
+      'Checking chapter generation status',
+      data: {'executionArn': executionArn},
+    );
+
+    try {
+      final response = await http.get(Uri.parse(url));
+
+      Logger.api(
+        'GET',
+        endpoint,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+
+      if (response.statusCode == 200) {
+        final result = json.decode(response.body);
+        Logger.d(
+          _tag,
+          'Chapter generation status checked',
+          data: {
+            'status': result['status'],
+            'isComplete': result['isComplete'],
+            'isFailed': result['isFailed'],
+          },
+        );
+        return result;
+      } else {
+        final error =
+            'Error checking chapter generation status: Status ${response.statusCode}';
+        Logger.e(_tag, error, error: response.body);
+        throw Exception(error);
+      }
+    } catch (e) {
+      final error = 'Error checking chapter generation status: $e';
       Logger.e(_tag, error, error: e, stackTrace: StackTrace.current);
       throw Exception(error);
     }

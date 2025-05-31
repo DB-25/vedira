@@ -20,6 +20,9 @@ class CodeBlockBuilder extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasMultipleLines = code.contains('\n');
 
+    // Ensure we have a safe language string
+    final safeLanguage = language.isEmpty ? 'plaintext' : language;
+
     // Choose theme based on dark mode
     final highlightTheme = isDarkMode ? vs2015Theme : githubTheme;
 
@@ -88,16 +91,43 @@ class CodeBlockBuilder extends StatelessWidget {
                 ],
               ),
             ),
-          HighlightView(
-            code,
-            language: language.isNotEmpty ? language : 'plaintext',
-            theme: highlightTheme,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            textStyle: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 14,
-              height: 1.5,
-            ),
+          // Wrap HighlightView in error handling
+          Builder(
+            builder: (context) {
+              try {
+                return HighlightView(
+                  code,
+                  language: safeLanguage,
+                  theme: highlightTheme,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  textStyle: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                );
+              } catch (e) {
+                // Fallback to simple text display if highlighting fails
+                print('get language error:$e');
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  child: SelectableText(
+                    code,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 14,
+                      height: 1.5,
+                    ),
+                  ),
+                );
+              }
+            },
           ),
         ],
       ),

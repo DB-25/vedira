@@ -44,17 +44,17 @@ class CourseCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(course!.description, style: theme.textTheme.bodyMedium),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('By ${course!.author}', style: theme.textTheme.bodyMedium),
-                Text(
-                  '${course!.lessons?.length ?? 0} lessons',
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ],
-            ),
+            // const SizedBox(height: 16),
+            // Row(
+            //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            //   children: [
+            //     Text('By ${course!.author}', style: theme.textTheme.bodyMedium),
+            //     Text(
+            //       '${course!.lessons?.length ?? 0} lessons',
+            //       style: theme.textTheme.bodyMedium,
+            //     ),
+            //   ],
+            // ),
             const SizedBox(height: 8),
             ElevatedButton(
               onPressed: () {

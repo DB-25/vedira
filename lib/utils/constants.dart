@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class AppConstants {
   // API Constants
   static const String apiBaseUrl =
-      'https://rgml14alw6.execute-api.us-east-1.amazonaws.com';
+      'https://i7cicaxvzf.execute-api.us-east-1.amazonaws.com/prod';
   static const String defaultUserId = 'rs';
 
   // App Theme Colors
@@ -48,6 +48,12 @@ class AppConstants {
   static const String errorCourseNotFound = 'Course not found.';
   static const String errorGeneratingCourse =
       'Error generating course. Please try again later.';
+  static const String errorGeneratingChapter =
+      'Error generating chapter. Please try again later.';
+  static const String errorChapterGenerationTimeout =
+      'Chapter generation timed out. Please try again.';
+  static const String errorChapterGenerationFailed =
+      'Chapter generation failed. Please try again.';
   static const String noCoursesAvailable =
       'No courses available at the moment.';
   static const String noLessonsAvailable =
@@ -74,4 +80,23 @@ class AppConstants {
   static const String generatingCourseSubMessage =
       'This may take a few minutes.';
   static const String generatingCourseCancelMessage = 'Cancel';
+
+  // Chapter Generation Polling
+  static const Duration chapterPollingInterval = Duration(seconds: 5);
+  static const Duration chapterGenerationTimeout = Duration(minutes: 15);
+  static const String generatingChapterMessage = 'Generating chapter...';
+  static const String generatingChapterSubMessage =
+      'This may take a few minutes.';
+  static const String chapterGeneratedSuccessMessage =
+      'Chapter generated successfully!';
+  static const String chapterGenerationFailedMessage =
+      'Chapter generation failed. Please try again.';
+
+  // Reading Progress Indicator
+  static const Color progressBarActiveColor = Colors.blue;
+  static const Color progressBarBackgroundColor = Colors.grey;
+  static const double progressBarHeight = 4.0;
+  static const double scrollIndicatorWidth = 6.0;
+  static const double scrollIndicatorThumbHeight = 20.0;
+  static const Duration progressAnimationDuration = Duration(milliseconds: 100);
 }

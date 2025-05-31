@@ -6,6 +6,7 @@ import '../models/lesson.dart';
 import '../services/api_service.dart';
 import '../utils/logger.dart';
 import '../widgets/code_block_builder.dart';
+import '../widgets/reading_progress_indicator.dart';
 
 class LessonViewScreen extends StatefulWidget {
   final String courseId;
@@ -35,12 +36,17 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
   final TocController _tocController = TocController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  String _lessonContent = '';
+  Map<String, String> _lessonContentSections = {};
+  List<String> _sectionKeys = [];
+  int _currentSectionIndex = 0;
   bool _isLoading = true;
   bool _error = false;
   bool _isCompleting = false;
   FontSize _fontSize = FontSize.medium;
   bool _showScrollToTop = false;
+  bool _hasReached90Percent =
+      false; // Track 90% scroll progress for completion button
+  bool _showFab = true; // Always show FAB, but with dynamic behavior
 
   @override
   void initState() {
@@ -59,12 +65,33 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
     super.dispose();
   }
 
-  // Track scroll position for FAB visibility
+  // Track scroll position for FAB visibility and 90% progress detection
   void _scrollListener() {
-    final showButton = _scrollController.offset > 300;
-    if (_showScrollToTop != showButton) {
+    if (!_scrollController.hasClients) return;
+
+    final maxScrollExtent = _scrollController.position.maxScrollExtent;
+    final currentPosition = _scrollController.offset;
+    final threshold = 50.0; // 50px threshold to account for precision issues
+
+    // Check if scrolled to bottom (for FAB behavior)
+    final isAtBottom = currentPosition >= (maxScrollExtent - threshold);
+
+    // Check if reached 90% scroll progress (for completion button)
+    final scrollProgress =
+        maxScrollExtent > 0 ? currentPosition / maxScrollExtent : 0.0;
+    final hasReached90Percent = scrollProgress >= 0.9;
+
+    // Update FAB state
+    if (_showScrollToTop != isAtBottom) {
       setState(() {
-        _showScrollToTop = showButton;
+        _showScrollToTop = isAtBottom;
+      });
+    }
+
+    // Update 90% progress state - once true, keep it true (don't hide completion button)
+    if (!_hasReached90Percent && hasReached90Percent) {
+      setState(() {
+        _hasReached90Percent = true;
       });
     }
   }
@@ -80,17 +107,21 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
       // Use lesson content if provided, otherwise fetch from API
       if (widget.lesson != null && widget.lesson!.content.isNotEmpty) {
         setState(() {
-          _lessonContent = widget.lesson!.content;
+          _lessonContentSections = {'section1': widget.lesson!.content};
+          _sectionKeys = ['section1'];
+          _currentSectionIndex = 0;
           _isLoading = false;
         });
       } else {
-        final content = await _apiService.getLessonContent(
+        final contentSections = await _apiService.getLessonContent(
           courseId: widget.courseId,
           chapterId: widget.chapterId,
           lessonId: widget.lessonId,
         );
         setState(() {
-          _lessonContent = content;
+          _lessonContentSections = contentSections;
+          _sectionKeys = contentSections.keys.toList()..sort();
+          _currentSectionIndex = 0;
           _isLoading = false;
         });
       }
@@ -106,7 +137,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
   // Toggle the TOC drawer
   void _toggleToc() {
     // Only show TOC if content is available
-    if (_lessonContent.isEmpty) {
+    if (_currentSectionContent.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('No content available for table of contents'),
@@ -211,63 +242,102 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
           ),
         ],
       ),
-      // Floating action button for scrolling to top
-      floatingActionButton:
-          _showScrollToTop
-              ? FloatingActionButton(
-                mini: true,
-                onPressed: () {
-                  _scrollController.animateTo(
-                    0,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                  );
-                },
-                child: const Icon(Icons.arrow_upward),
-              )
-              : null,
-      // Bottom bar with "Mark as Completed" button
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(13),
-              blurRadius: 3,
-              offset: const Offset(0, -1),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: ElevatedButton(
-            onPressed: _isCompleting ? null : _markLessonAsCompleted,
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: theme.colorScheme.primary,
-              foregroundColor: theme.colorScheme.onPrimary,
-            ),
-            child:
-                _isCompleting
-                    ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: theme.colorScheme.onPrimary,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Text('Marking as Completed...'),
-                      ],
-                    )
-                    : const Text('Mark as Completed'),
+      // Dynamic floating action button - scroll down by default, scroll up when at bottom
+      floatingActionButton: FloatingActionButton(
+        mini: true,
+        onPressed: () {
+          if (_showScrollToTop) {
+            // At bottom - scroll to top
+            _scrollController.animateTo(
+              0,
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeInOut,
+            );
+          } else {
+            // Not at bottom - scroll to bottom
+            _scrollController.animateTo(
+              _scrollController.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeInOut,
+            );
+          }
+        },
+        tooltip: _showScrollToTop ? 'Scroll to top' : 'Scroll to bottom',
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          switchInCurve: Curves.easeInOut,
+          switchOutCurve: Curves.easeInOut,
+          transitionBuilder: (Widget child, Animation<double> animation) {
+            // Natural directional slide based on arrow direction
+            final isUpArrow = (child.key as ValueKey).value == 'up';
+            final slideOffset =
+                isUpArrow
+                    ? const Offset(0.0, 0.3) // Up arrow slides from below
+                    : const Offset(0.0, -0.3); // Down arrow slides from above
+
+            return SlideTransition(
+              position: animation.drive(
+                Tween<Offset>(
+                  begin: slideOffset,
+                  end: Offset.zero,
+                ).chain(CurveTween(curve: Curves.easeOutCubic)),
+              ),
+              child: FadeTransition(opacity: animation, child: child),
+            );
+          },
+          child: Icon(
+            _showScrollToTop
+                ? Icons.keyboard_arrow_up
+                : Icons.keyboard_arrow_down,
+            key: ValueKey(_showScrollToTop ? 'up' : 'down'),
           ),
         ),
       ),
+      // Bottom bar with "Mark as Completed" button - only show on last section when scrolled to bottom
+      bottomNavigationBar:
+          _shouldShowCompletionButton
+              ? Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.cardColor,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(13),
+                      blurRadius: 3,
+                      offset: const Offset(0, -1),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  child: ElevatedButton(
+                    onPressed: _isCompleting ? null : _markLessonAsCompleted,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: theme.colorScheme.onPrimary,
+                    ),
+                    child:
+                        _isCompleting
+                            ? Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: theme.colorScheme.onPrimary,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Text('Marking as Completed...'),
+                              ],
+                            )
+                            : const Text('Mark as Completed'),
+                  ),
+                ),
+              )
+              : null,
       body: _buildBody(isDarkMode),
       endDrawer: _buildTocDrawer(theme),
     );
@@ -337,7 +407,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
               child: Builder(
                 builder: (context) {
                   // Only show TOC if we have content
-                  if (_lessonContent.isEmpty) {
+                  if (_currentSectionContent.isEmpty) {
                     return const Center(
                       child: Padding(
                         padding: EdgeInsets.all(10),
@@ -436,180 +506,360 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
       );
     }
 
-    if (_lessonContent.isEmpty) {
+    if (_currentSectionContent.isEmpty) {
       return const Center(child: Text('No content to display'));
     }
 
-    // Create the markdown widget with custom code wrapper
+    // Build content with pagination controls and reading progress indicator
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Builder(
-          builder: (context) {
-            try {
-              final baseFontSize = _getFontSizeValue();
+      child: Column(
+        children: [
+          // Reading Progress Indicator
 
-              // Create a config with our custom font sizes
-              final customConfig =
-                  isDarkMode
-                      ? MarkdownConfig.darkConfig
-                      : MarkdownConfig.defaultConfig;
-
-              // Create markdown widget
-              return MarkdownWidget(
-                data: _lessonContent,
-                tocController: _tocController,
-                physics: const ClampingScrollPhysics(),
-                selectable: true,
-                config: customConfig.copy(
-                  configs: [
-                    // Base text style with our selected font size
-                    PConfig(textStyle: TextStyle(fontSize: baseFontSize)),
-                    // Apply proportional font sizes to headings
-                    H1Config(
-                      style: TextStyle(
-                        fontSize: baseFontSize * 1.8,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    H2Config(
-                      style: TextStyle(
-                        fontSize: baseFontSize * 1.5,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    H3Config(
-                      style: TextStyle(
-                        fontSize: baseFontSize * 1.2,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    // Style for inline code elements (like variables)
-                    CodeConfig(
-                      style: TextStyle(
-                        fontSize: baseFontSize,
-                        fontFamily: 'monospace',
-                        letterSpacing: 0.3,
-                        color:
-                            isDarkMode
-                                ? const Color(
-                                  0xFFE0E0E0,
-                                ) // Light gray text in dark mode
-                                : const Color(
-                                  0xFF333333,
-                                ), // Dark gray text in light mode
-                        backgroundColor:
-                            isDarkMode
-                                ? const Color(
-                                  0xFF3A3A3A,
-                                ) // Darker gray in dark mode
-                                : const Color(
-                                  0xFFEEEEEE,
-                                ), // Light gray in light mode
-                      ),
-                    ),
-                    // Code block configuration with safe language handling
-                    PreConfig(
-                      textStyle: TextStyle(
-                        fontSize: baseFontSize * 0.9,
-                        fontFamily: 'monospace',
-                      ),
-                      wrapper: (child, text, language) {
-                        try {
-                          // Simple language validation to avoid null/empty issues
-                          String safeLanguage = 'plaintext';
-                          if (language.isNotEmpty) {
-                            // Only use language if we support it
-                            final validLanguages = [
-                              'python',
-                              'dart',
-                              'javascript',
-                              'java',
-                              'kotlin',
-                              'swift',
-                              'c',
-                              'cpp',
-                              'csharp',
-                              'go',
-                              'rust',
-                              'html',
-                              'css',
-                              'json',
-                              'yaml',
-                              'markdown',
-                              'bash',
-                              'shell',
-                              'sql',
-                              'plaintext',
-                              'txt',
-                            ];
-                            if (validLanguages.contains(
-                              language.toLowerCase(),
-                            )) {
-                              safeLanguage = language.toLowerCase();
-                            }
-                          }
-
-                          return CodeBlockBuilder(
-                            code: text,
-                            language: safeLanguage,
-                            isDarkMode: isDarkMode,
-                          );
-                        } catch (e) {
-                          // Fallback for errors with very simple implementation
-                          return Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(12),
-                            color:
-                                isDarkMode
-                                    ? Colors.grey[900]
-                                    : Colors.grey[200],
-                            child: SelectableText(
-                              text,
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                fontSize: baseFontSize * 0.9,
-                                color:
-                                    isDarkMode
-                                        ? Colors.grey[300]
-                                        : Colors.grey[800],
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                    ),
-                  ],
+          // Top pagination controls
+          if (_hasMultipleSections) _buildPaginationControls(isTop: true),
+          ReadingProgressIndicator(
+            scrollController: _scrollController,
+            height: 6.0,
+            showPercentage: false,
+            borderRadius: BorderRadius.circular(5.0),
+          ),
+          // Main scrollable content with side scroll indicator
+          Expanded(
+            child: Row(
+              children: [
+                // Main content area - now the entire area is scrollable
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    physics: const ClampingScrollPhysics(),
+                    padding: EdgeInsets.all(16),
+                    child: _buildMarkdownContent(isDarkMode),
+                  ),
                 ),
-              );
-            } catch (e) {
-              Logger.e(_tag, 'Error rendering markdown content', error: e);
-              return SingleChildScrollView(
-                child: Column(
-                  children: [
-                    const Icon(
-                      Icons.warning_amber_rounded,
-                      color: Colors.orange,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Error rendering content',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text('Showing raw content instead:\n\n$_lessonContent'),
-                  ],
+
+                // Side scroll indicator
+                Container(
+                  width: 12,
+                  margin: const EdgeInsets.only(right: 8, top: 16, bottom: 16),
+                  child: ScrollIndicator(
+                    scrollController: _scrollController,
+                    width: 8,
+                  ),
                 ),
-              );
-            }
-          },
-        ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  // Build pagination controls
+  Widget _buildPaginationControls({required bool isTop}) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          top: isTop ? BorderSide.none : BorderSide(color: theme.dividerColor),
+          bottom:
+              isTop ? BorderSide(color: theme.dividerColor) : BorderSide.none,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Previous button
+          TextButton.icon(
+            onPressed: _currentSectionIndex > 0 ? _goToPreviousSection : null,
+            icon: const Icon(Icons.arrow_back_ios, size: 16),
+            label: const Text('Previous'),
+            style: TextButton.styleFrom(
+              foregroundColor: theme.colorScheme.primary,
+            ),
+          ),
+
+          // Section indicator
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Section ${_currentSectionIndex + 1} of ${_sectionKeys.length}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withAlpha(153),
+                  ),
+                ),
+                if (isTop) // Only show section title at the top
+                  Text(
+                    _currentSectionTitle,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                      color: theme.colorScheme.primary,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+
+          // Next button
+          TextButton.icon(
+            onPressed:
+                _currentSectionIndex < _sectionKeys.length - 1
+                    ? _goToNextSection
+                    : null,
+            icon: const Icon(Icons.arrow_forward_ios, size: 16),
+            label: const Text('Next'),
+            style: TextButton.styleFrom(
+              foregroundColor: theme.colorScheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Navigate to previous section
+  void _goToPreviousSection() {
+    if (_currentSectionIndex > 0) {
+      setState(() {
+        _currentSectionIndex--;
+        _hasReached90Percent =
+            false; // Reset 90% progress when changing sections
+      });
+
+      // Reset scroll to top for new section after the rebuild is complete
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+    }
+  }
+
+  // Navigate to next section
+  void _goToNextSection() {
+    if (_currentSectionIndex < _sectionKeys.length - 1) {
+      setState(() {
+        _currentSectionIndex++;
+        _hasReached90Percent =
+            false; // Reset 90% progress when changing sections
+      });
+
+      // Reset scroll to top for new section after the rebuild is complete
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+    }
+  }
+
+  // Build the markdown content widget
+  Widget _buildMarkdownContent(bool isDarkMode) {
+    // Create the markdown widget with custom code wrapper
+    return Builder(
+      builder: (context) {
+        try {
+          final baseFontSize = _getFontSizeValue();
+
+          // Clean the markdown content to prevent entire sections being treated as code blocks
+          String cleanedContent = _cleanMarkdownContent(_currentSectionContent);
+
+          // Check if this is a large section that might be problematic
+          final isLargeSection = cleanedContent.length > 10000;
+
+          // Create a config with our custom font sizes
+          final customConfig =
+              isDarkMode
+                  ? MarkdownConfig.darkConfig
+                  : MarkdownConfig.defaultConfig;
+
+          // Prepare config list - conditionally include PreConfig
+          final List<WidgetConfig> configs = [
+            // Base text style with our selected font size
+            PConfig(textStyle: TextStyle(fontSize: baseFontSize)),
+            // Apply proportional font sizes to headings
+            H1Config(
+              style: TextStyle(
+                fontSize: baseFontSize * 1.8,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            H2Config(
+              style: TextStyle(
+                fontSize: baseFontSize * 1.5,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            H3Config(
+              style: TextStyle(
+                fontSize: baseFontSize * 1.2,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            // Style for inline code elements (like variables)
+            CodeConfig(
+              style: TextStyle(
+                fontSize: baseFontSize,
+                fontFamily: 'monospace',
+                letterSpacing: 0.3,
+                color:
+                    isDarkMode
+                        ? const Color(
+                          0xFFE0E0E0,
+                        ) // Light gray text in dark mode
+                        : const Color(
+                          0xFF333333,
+                        ), // Dark gray text in light mode
+                backgroundColor:
+                    isDarkMode
+                        ? const Color(0xFF3A3A3A) // Darker gray in dark mode
+                        : const Color(0xFFEEEEEE), // Light gray in light mode
+              ),
+            ),
+          ];
+
+          // Only add PreConfig for smaller content to avoid large sections being treated as code
+          if (!isLargeSection) {
+            configs.add(
+              // Code block configuration with safe language handling
+              PreConfig(
+                textStyle: TextStyle(
+                  fontSize: baseFontSize * 0.9,
+                  fontFamily: 'monospace',
+                ),
+                wrapper: (child, text, language) {
+                  try {
+                    // Check if this looks like actual code or just incorrectly formatted content
+                    final isLikelyActualCode = _isLikelyCodeBlock(
+                      text,
+                      language,
+                    );
+
+                    if (!isLikelyActualCode) {
+                      // This doesn't look like a code block, return original child
+                      return child;
+                    }
+
+                    // Simple language validation to avoid null/empty issues
+                    String safeLanguage = 'plaintext';
+                    if (language.isNotEmpty) {
+                      // Only use language if we support it
+                      final validLanguages = [
+                        'python',
+                        'dart',
+                        'javascript',
+                        'java',
+                        'kotlin',
+                        'swift',
+                        'c',
+                        'cpp',
+                        'csharp',
+                        'go',
+                        'rust',
+                        'html',
+                        'css',
+                        'json',
+                        'yaml',
+                        'markdown',
+                        'bash',
+                        'shell',
+                        'sql',
+                        'plaintext',
+                        'txt',
+                      ];
+                      if (validLanguages.contains(language.toLowerCase())) {
+                        safeLanguage = language.toLowerCase();
+                      }
+                    }
+
+                    return CodeBlockBuilder(
+                      code: text,
+                      language: safeLanguage,
+                      isDarkMode: isDarkMode,
+                    );
+                  } catch (e) {
+                    // Return original child on error
+                    return child;
+                  }
+                },
+              ),
+            );
+          }
+
+          // Create markdown widget (ScrollView is now handled at parent level)
+          return MarkdownWidget(
+            data: cleanedContent,
+            tocController: _tocController,
+            selectable: true,
+            shrinkWrap:
+                true, // Changed back to true since no more SingleChildScrollView wrapper
+            config: customConfig.copy(configs: configs),
+          );
+        } catch (e) {
+          Logger.e(_tag, 'Error rendering markdown content', error: e);
+          return Column(
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.orange,
+                size: 48,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Error rendering content',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              const SizedBox(height: 8),
+              Text('Showing raw content instead:\n\n$_currentSectionContent'),
+            ],
+          );
+        }
+      },
+    );
+  }
+
+  // Clean markdown content to prevent parsing issues
+  String _cleanMarkdownContent(String content) {
+    final lines = content.split('\n');
+    List<String> workingLines = List.from(lines);
+
+    // Remove wrapping code block markers if the entire content is wrapped
+    if (workingLines.isNotEmpty && workingLines[0].trim() == '```') {
+      workingLines.removeAt(0);
+
+      // Also remove the corresponding closing marker at the end
+      if (workingLines.isNotEmpty && workingLines.last.trim() == '```') {
+        workingLines.removeLast();
+      }
+    }
+
+    // Check for other variations of wrapping code blocks (with language specified)
+    if (workingLines.isNotEmpty && workingLines[0].trim().startsWith('```')) {
+      workingLines.removeAt(0);
+
+      // Remove corresponding closing marker
+      if (workingLines.isNotEmpty && workingLines.last.trim() == '```') {
+        workingLines.removeLast();
+      }
+    }
+
+    return workingLines.join('\n');
   }
 
   // Show font size selection dialog
@@ -723,5 +973,112 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
       case FontSize.large:
         return 18.0;
     }
+  }
+
+  // Get current section content
+  String get _currentSectionContent {
+    if (_sectionKeys.isEmpty) return '';
+    final currentKey = _sectionKeys[_currentSectionIndex];
+    return _lessonContentSections[currentKey] ?? '';
+  }
+
+  // Get current section title/key
+  String get _currentSectionTitle {
+    if (_sectionKeys.isEmpty) return '';
+    return _sectionKeys[_currentSectionIndex];
+  }
+
+  // Check if there are multiple sections for pagination
+  bool get _hasMultipleSections => _sectionKeys.length > 1;
+
+  // Check if the current section is the last section
+  bool get _isOnLastSection => _currentSectionIndex == _sectionKeys.length - 1;
+
+  // Check if the completion button should be shown
+  bool get _shouldShowCompletionButton =>
+      _isOnLastSection && _hasReached90Percent;
+
+  // Helper method to check if a string looks like actual code
+  bool _isLikelyCodeBlock(String text, String language) {
+    // If a specific language is provided (not empty), it's likely a code block
+    if (language.isNotEmpty && language != 'plaintext') {
+      return true;
+    }
+
+    // If text is very long (more than 2000 characters), it's probably not a code block
+    if (text.length > 2000) {
+      return false;
+    }
+
+    // Check for markdown headers (##, ###, etc.) - these indicate it's markdown content, not code
+    if (text.contains(RegExp(r'^#{1,6}\s+', multiLine: true))) {
+      return false;
+    }
+
+    // Check for common markdown patterns
+    if (text.contains(RegExp(r'\*\*.*?\*\*')) || // Bold text
+        text.contains(RegExp(r'\*.*?\*')) || // Italic text
+        text.contains(RegExp(r'\[.*?\]\(.*?\)'))) {
+      // Links
+      return false;
+    }
+
+    // Check for paragraph breaks - code blocks typically don't have multiple paragraphs
+    final paragraphCount = text.split(RegExp(r'\n\s*\n')).length;
+    if (paragraphCount > 3) {
+      return false;
+    }
+
+    // If text starts with markdown content indicators, it's not a code block
+    final trimmedText = text.trim();
+    if (trimmedText.startsWith('##') ||
+        trimmedText.startsWith('**') ||
+        trimmedText.startsWith('The ') ||
+        trimmedText.startsWith('In ') ||
+        trimmedText.startsWith('A ') ||
+        trimmedText.startsWith('An ')) {
+      return false;
+    }
+
+    // Check for code-like patterns
+    final codePatterns = [
+      RegExp(r'\{.*\}'), // Curly braces
+      RegExp(r'\[.*\]'), // Square brackets (but not markdown links)
+      RegExp(r'function\s*\('), // Function declarations
+      RegExp(r'class\s+\w+'), // Class declarations
+      RegExp(r'import\s+'), // Import statements
+      RegExp(r'def\s+\w+'), // Python function definitions
+      RegExp(r'var\s+\w+'), // Variable declarations
+      RegExp(r'const\s+\w+'), // Constant declarations
+    ];
+
+    int codePatternMatches = 0;
+    for (final pattern in codePatterns) {
+      if (pattern.hasMatch(text)) {
+        codePatternMatches++;
+      }
+    }
+
+    // If we have multiple code patterns, it's likely code
+    if (codePatternMatches >= 2) {
+      return true;
+    }
+
+    // Check line count and indentation
+    final lines = text.split('\n');
+    if (lines.length <= 20) {
+      // Short content might be code
+      // Check if most lines are indented (common in code)
+      final indentedLines =
+          lines
+              .where((line) => line.startsWith('  ') || line.startsWith('\t'))
+              .length;
+      if (indentedLines > lines.length * 0.6) {
+        return true;
+      }
+    }
+
+    // Default to false - don't treat as code block unless we're confident
+    return false;
   }
 }

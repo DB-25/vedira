@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+
 import '../models/course.dart';
 import '../models/section.dart';
 import '../services/api_service.dart';
-import '../widgets/section_tile.dart';
-import '../widgets/lesson_tile.dart';
-import '../utils/logger.dart';
 import '../utils/constants.dart';
+import '../utils/logger.dart';
+import '../widgets/lesson_tile.dart';
+import '../widgets/section_tile.dart';
 
 class CourseDetailsScreen extends StatefulWidget {
   final String courseId;
@@ -40,24 +41,20 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
   }
 
   Future<void> _loadCourse() async {
-    // Ensure we have a non-empty courseId
-    final courseId =
-        widget.courseId.isEmpty
-            ? 'cbbd5c0f-e4c9-42ee-81e0-7af5543292f3' // Use a sample ID if courseId is empty
-            : widget.courseId;
-
+    // Check if courseId is empty and treat it as an error
     if (widget.courseId.isEmpty) {
-      Logger.w(
-        _tag,
-        'Empty courseId provided, using sample ID instead: $courseId',
-      );
+      Logger.e(_tag, 'Empty courseId provided to CourseDetailsScreen');
+      setState(() {
+        _courseFuture = Future.error(Exception('Course ID is required'));
+      });
+      return;
     }
 
-    Logger.i(_tag, 'Loading course details for ID: $courseId');
+    Logger.i(_tag, 'Loading course details for ID: ${widget.courseId}');
     setState(() {
       // Use the course endpoint which now directly calls the lesson plan API
       _courseFuture = _apiService.getCourse(
-        courseId,
+        widget.courseId,
         userId: AppConstants.defaultUserId,
       );
     });
@@ -212,7 +209,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
         _buildCourseHeader(context, course, theme),
         const SizedBox(height: 16),
         Text(
-          'Sections',
+          'Chapters',
           style: theme.textTheme.titleLarge?.copyWith(
             color: theme.colorScheme.onSurface,
             fontWeight: FontWeight.bold,
@@ -230,10 +227,10 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
     ThemeData theme,
   ) {
     return Card(
-      elevation: 2,
+      elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(15.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -244,25 +241,6 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            if (course.author.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(
-                    Icons.person,
-                    size: 16,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'By ${course.author}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ],
             const SizedBox(height: 12),
             Text(course.description, style: theme.textTheme.bodyMedium),
             if (course.createdAt != null) ...[
@@ -312,17 +290,36 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
         return Card(
           margin: const EdgeInsets.only(bottom: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(20),
           ),
+          elevation: 5,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SectionTile(section: section),
               const Divider(),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 3.0,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${section.lessons.length} ${section.lessons.length == 1 ? 'Lesson' : 'Lessons'}',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.7),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               if (section.lessons.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(16.0),
-                  child: Center(child: Text('No lessons in this section')),
+                  child: Center(child: Text('No lessons in this chapter')),
                 )
               else
                 ListView.builder(
@@ -356,15 +353,30 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SectionTile(
-            title: 'Main Section',
-            lessonCount: course.lessons!.length,
-          ),
+          SectionTile(title: 'Main Chapter'),
           const Divider(),
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  '${course.lessons!.length} ${course.lessons!.length == 1 ? 'Lesson' : 'Lessons'}',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.7),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
           if (course.lessons!.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16.0),
-              child: Center(child: Text('No lessons in this section')),
+              child: Center(child: Text('No lessons in this chapter')),
             )
           else
             ListView.builder(
