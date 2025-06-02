@@ -67,6 +67,7 @@ class AppConstants {
   static const String lessonRoute = '/lesson';
   static const String createCourseRoute = '/create-course';
   static const String lessonViewRoute = '/lesson-view';
+  static const String mcqQuizRoute = '/mcq-quiz';
 
   // Feature Flags
   static const bool enableCreateCourse =

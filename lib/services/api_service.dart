@@ -423,16 +423,40 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final result = json.decode(response.body);
+
+        // Handle new API format with step_function_details and chapter_generation_status
+        final stepFunctionDetails =
+            result['step_function_details'] as Map<String, dynamic>?;
+        final chapterGenerationStatus =
+            result['chapter_generation_status'] as Map<String, dynamic>?;
+
+        // Extract status from step function details for backward compatibility
+        final status = stepFunctionDetails?['status'] ?? 'UNKNOWN';
+        final isComplete = status == 'SUCCEEDED';
+        final isFailed =
+            status == 'FAILED' || status == 'TIMED_OUT' || status == 'ABORTED';
+
+        // Prepare enhanced response
+        final enhancedResult = {
+          'status': status,
+          'isComplete': isComplete,
+          'isFailed': isFailed,
+          'step_function_details': stepFunctionDetails,
+          'chapter_generation_status': chapterGenerationStatus,
+        };
+
         Logger.d(
           _tag,
           'Chapter generation status checked',
           data: {
-            'status': result['status'],
-            'isComplete': result['isComplete'],
-            'isFailed': result['isFailed'],
+            'status': status,
+            'isComplete': isComplete,
+            'isFailed': isFailed,
+            'hasChapterStatus': chapterGenerationStatus != null,
           },
         );
-        return result;
+
+        return enhancedResult;
       } else {
         final error =
             'Error checking chapter generation status: Status ${response.statusCode}';

@@ -1,5 +1,6 @@
 import 'lesson.dart';
 import 'section.dart';
+import 'chapter_status.dart';
 import 'dart:developer' as developer;
 
 class Course {
@@ -11,6 +12,7 @@ class Course {
   final List<Section>? sections;
   final DateTime? createdAt;
   final bool isGenerating;
+  final Map<String, ChapterStatus> chaptersStatus;
 
   Course({
     required this.courseID,
@@ -21,6 +23,7 @@ class Course {
     this.sections,
     this.createdAt,
     this.isGenerating = false,
+    this.chaptersStatus = const {},
   });
 
   factory Course.fromJson(Map<String, dynamic> json) {
@@ -73,6 +76,25 @@ class Course {
       }
     }
 
+    // Parse chapters_status if available
+    Map<String, ChapterStatus> parsedChaptersStatus = {};
+    if (json['chapters_status'] != null && json['chapters_status'] is Map) {
+      try {
+        final statusMap = json['chapters_status'] as Map<String, dynamic>;
+        statusMap.forEach((key, value) {
+          if (value is Map<String, dynamic>) {
+            parsedChaptersStatus[key] = ChapterStatus.fromJson(value);
+          }
+        });
+        developer.log(
+          'Parsed chapters_status for ${parsedChaptersStatus.length} chapters',
+          name: 'Course',
+        );
+      } catch (e) {
+        developer.log('Error parsing chapters_status: $e', name: 'Course');
+      }
+    }
+
     return Course(
       courseID: rawCourseId,
       title: json['title'] ?? '',
@@ -92,6 +114,7 @@ class Course {
               ? DateTime.tryParse(json['created_at'])
               : null,
       isGenerating: json['isGenerating'] ?? json['is_generating'] ?? false,
+      chaptersStatus: parsedChaptersStatus,
     );
   }
 
@@ -105,6 +128,9 @@ class Course {
       'sections': sections?.map((section) => section.toJson()).toList(),
       'createdAt': createdAt?.toIso8601String(),
       'isGenerating': isGenerating,
+      'chapters_status': chaptersStatus.map(
+        (key, value) => MapEntry(key, value.toJson()),
+      ),
     };
   }
 
@@ -118,6 +144,7 @@ class Course {
     List<Section>? sections,
     DateTime? createdAt,
     bool? isGenerating,
+    Map<String, ChapterStatus>? chaptersStatus,
   }) {
     return Course(
       courseID: courseID ?? this.courseID,
@@ -128,6 +155,17 @@ class Course {
       sections: sections ?? this.sections,
       createdAt: createdAt ?? this.createdAt,
       isGenerating: isGenerating ?? this.isGenerating,
+      chaptersStatus: chaptersStatus ?? this.chaptersStatus,
     );
+  }
+
+  // Get status for a specific chapter
+  ChapterStatus? getChapterStatus(String chapterId) {
+    return chaptersStatus[chapterId];
+  }
+
+  // Check if any chapters are currently generating
+  bool get hasGeneratingChapters {
+    return chaptersStatus.values.any((status) => status.isGenerating);
   }
 }

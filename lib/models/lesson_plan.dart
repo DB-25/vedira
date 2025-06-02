@@ -1,5 +1,6 @@
 import 'chapter.dart';
 import 'course.dart';
+import 'chapter_status.dart';
 import 'dart:developer' as developer;
 
 class LessonPlan {
@@ -8,6 +9,7 @@ class LessonPlan {
   final String description;
   final String userID;
   final List<Chapter> chapters;
+  final Map<String, ChapterStatus> chaptersStatus;
 
   LessonPlan({
     required this.courseID,
@@ -15,6 +17,7 @@ class LessonPlan {
     required this.description,
     required this.userID,
     required this.chapters,
+    this.chaptersStatus = const {},
   });
 
   factory LessonPlan.fromJson(Map<String, dynamic> json) {
@@ -51,12 +54,32 @@ class LessonPlan {
       }
     }
 
+    // Parse chapters_status if available
+    Map<String, ChapterStatus> parsedChaptersStatus = {};
+    if (json['chapters_status'] != null && json['chapters_status'] is Map) {
+      try {
+        final statusMap = json['chapters_status'] as Map<String, dynamic>;
+        statusMap.forEach((key, value) {
+          if (value is Map<String, dynamic>) {
+            parsedChaptersStatus[key] = ChapterStatus.fromJson(value);
+          }
+        });
+        developer.log(
+          'Parsed chapters_status for ${parsedChaptersStatus.length} chapters',
+          name: 'LessonPlan',
+        );
+      } catch (e) {
+        developer.log('Error parsing chapters_status: $e', name: 'LessonPlan');
+      }
+    }
+
     return LessonPlan(
       courseID: rawCourseId,
       title: json['title'] ?? '',
       description: json['description'] ?? '',
       userID: json['UserID'] ?? json['userID'] ?? json['user_id'] ?? '',
       chapters: parsedChapters,
+      chaptersStatus: parsedChaptersStatus,
     );
   }
 
@@ -67,6 +90,9 @@ class LessonPlan {
       'description': description,
       'UserID': userID,
       'chapters': chapters.map((chapter) => chapter.toJson()).toList(),
+      'chapters_status': chaptersStatus.map(
+        (key, value) => MapEntry(key, value.toJson()),
+      ),
     };
   }
 
@@ -91,6 +117,36 @@ class LessonPlan {
       description: description,
       author: userID,
       sections: chapters.map((chapter) => chapter.toSection()).toList(),
+      chaptersStatus: chaptersStatus,
+    );
+  }
+
+  // Get status for a specific chapter
+  ChapterStatus? getChapterStatus(String chapterId) {
+    return chaptersStatus[chapterId];
+  }
+
+  // Check if any chapters are currently generating
+  bool get hasGeneratingChapters {
+    return chaptersStatus.values.any((status) => status.isGenerating);
+  }
+
+  // Create a copy with updated fields
+  LessonPlan copyWith({
+    String? courseID,
+    String? title,
+    String? description,
+    String? userID,
+    List<Chapter>? chapters,
+    Map<String, ChapterStatus>? chaptersStatus,
+  }) {
+    return LessonPlan(
+      courseID: courseID ?? this.courseID,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      userID: userID ?? this.userID,
+      chapters: chapters ?? this.chapters,
+      chaptersStatus: chaptersStatus ?? this.chaptersStatus,
     );
   }
 }

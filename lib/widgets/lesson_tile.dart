@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 
 import '../models/lesson.dart';
+import '../models/section.dart';
+import '../models/chapter_status.dart';
 import '../screens/lesson_view_screen.dart';
+import '../screens/mcq_quiz_screen.dart';
 import '../services/chapter_generation_service.dart';
+import '../services/api_service.dart';
 import '../utils/constants.dart';
 import '../utils/logger.dart';
 
@@ -12,6 +16,7 @@ class LessonTile extends StatefulWidget {
   final VoidCallback? onTap;
   final String? courseId;
   final VoidCallback? onRefreshNeeded;
+  final ChapterStatus? chapterStatus;
 
   const LessonTile({
     super.key,
@@ -19,6 +24,7 @@ class LessonTile extends StatefulWidget {
     this.onTap,
     this.courseId,
     this.onRefreshNeeded,
+    this.chapterStatus,
   });
 
   @override
@@ -33,76 +39,86 @@ class _LessonTileState extends State<LessonTile> {
   final String _tag = 'LessonTile';
 
   @override
+  void dispose() {
+    _generationSubscription?.cancel();
+    _chapterGenerationService.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final lesson = widget.lesson;
-    final bool isGenerated = lesson?.generated ?? false;
-    final bool isCompleted = lesson?.completed ?? false;
+
+    if (lesson == null) {
+      return const ListTile(
+        title: Text('Unknown Lesson'),
+        subtitle: Text('Lesson data is unavailable'),
+      );
+    }
+
+    // Determine if content is generated based on chapter status or lesson properties
+    final isGenerated = widget.chapterStatus?.hasContent ?? lesson.generated;
+    final isCompleted = lesson.completed;
+    final hasMcqs = widget.chapterStatus?.hasMcqs ?? false;
 
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      color: theme.colorScheme.surface,
-      child: ListTile(
-        title: Text(
-          lesson?.title ?? 'Lesson Title',
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color:
-                !isGenerated
-                    ? theme.colorScheme.onSurface.withAlpha(153)
-                    : null,
-          ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(
+          color: theme.colorScheme.outline.withAlpha(51),
+          width: 1,
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      ),
+      child: ListTile(
+        title: Row(
           children: [
-            if (lesson?.content != null && lesson!.content.isNotEmpty)
-              Text(
-                lesson.content,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(
+            Expanded(
+              child: Text(
+                lesson.title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
                   color:
-                      !isGenerated
-                          ? theme.colorScheme.onSurface.withAlpha(128)
-                          : null,
+                      isGenerated
+                          ? theme.colorScheme.onSurface
+                          : theme.colorScheme.onSurface.withAlpha(153),
                 ),
               ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                if (isCompleted)
-                  _buildStatusChip(
-                    icon: Icons.check_circle,
-                    label: 'Completed',
-                    backgroundColor: Colors.green.withAlpha(51),
-                    textColor: Colors.green,
-                    iconColor: Colors.green,
-                    isAnimated: false,
-                  ),
-                if (!isGenerated)
-                  _buildStatusChip(
-                    icon: _isGenerating ? Icons.sync : Icons.pending,
-                    label: _isGenerating ? 'Generating...' : 'Not Generated',
-                    backgroundColor: Colors.orange.withAlpha(51),
-                    textColor: Colors.orange,
-                    iconColor: Colors.orange,
-                    isAnimated: _isGenerating,
-                  ),
-                if (isGenerated && !isCompleted)
-                  _buildStatusChip(
-                    icon: Icons.play_arrow,
-                    label: 'Start Lesson',
-                    backgroundColor: colorScheme.primary.withAlpha(51),
-                    textColor: colorScheme.primary,
-                    iconColor: colorScheme.primary,
-                    isAnimated: false,
-                  ),
-              ],
             ),
+            if (_isGenerating)
+              _buildStatusChip(
+                icon: Icons.autorenew,
+                label: 'Generating',
+                backgroundColor: theme.colorScheme.primary.withAlpha(26),
+                textColor: theme.colorScheme.primary,
+                iconColor: theme.colorScheme.primary,
+                isAnimated: true,
+              ),
           ],
         ),
+        subtitle:
+            lesson.content.isNotEmpty
+                ? Text(
+                  lesson.content.length > 100
+                      ? '${lesson.content.substring(0, 100)}...'
+                      : lesson.content,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color:
+                        isGenerated
+                            ? theme.colorScheme.onSurface.withAlpha(153)
+                            : theme.colorScheme.onSurface.withAlpha(102),
+                  ),
+                )
+                : Text(
+                  'Tap to view lesson content',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withAlpha(128),
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
         leading: CircleAvatar(
           backgroundColor:
               isGenerated
@@ -124,6 +140,15 @@ class _LessonTileState extends State<LessonTile> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // MCQ Quiz button - show if MCQs are available
+            if (hasMcqs && isGenerated)
+              IconButton(
+                icon: const Icon(Icons.quiz),
+                onPressed: _navigateToMcqQuiz,
+                tooltip: 'Take Quiz',
+                color: theme.colorScheme.secondary,
+              ),
+            // Generate content button - show if content is not generated and not currently generating
             if (!isGenerated && !_isGenerating)
               IconButton(
                 icon: const Icon(Icons.refresh),
@@ -488,10 +513,47 @@ class _LessonTileState extends State<LessonTile> {
     );
   }
 
-  @override
-  void dispose() {
-    _generationSubscription?.cancel();
-    _chapterGenerationService.dispose();
-    super.dispose();
+  void _navigateToMcqQuiz() async {
+    if (widget.lesson == null || widget.courseId == null) return;
+
+    final chapterId = _extractChapterId(widget.lesson!.sectionId);
+
+    // Try to fetch section information to enable next lesson navigation
+    Section? section;
+    int? currentLessonIndex;
+    
+    try {
+      final apiService = ApiService();
+      final course = await apiService.getCourse(widget.courseId!);
+      
+      // Find the section that contains this lesson
+      if (course.sections != null) {
+        for (final s in course.sections!) {
+          final lessonIndex = s.lessons.indexWhere((l) => l.id == widget.lesson!.id);
+          if (lessonIndex >= 0) {
+            section = s;
+            currentLessonIndex = lessonIndex;
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      Logger.w(_tag, 'Failed to fetch section info for quiz navigation: $e');
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => McqQuizScreen(
+              courseId: widget.courseId!,
+              chapterId: chapterId,
+              lessonId: widget.lesson!.id,
+              lessonTitle: widget.lesson!.title,
+              section: section,
+              currentLessonIndex: currentLessonIndex,
+            ),
+      ),
+    );
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'api_service.dart';
+import '../models/chapter_status.dart';
 import '../utils/constants.dart';
 import '../utils/logger.dart';
 
@@ -9,8 +10,13 @@ enum ChapterGenerationStatus { running, completed, failed, timeout }
 class ChapterGenerationResult {
   final ChapterGenerationStatus status;
   final String? error;
+  final Map<String, ChapterStatus>? chaptersStatus;
 
-  ChapterGenerationResult({required this.status, this.error});
+  ChapterGenerationResult({
+    required this.status,
+    this.error,
+    this.chaptersStatus,
+  });
 }
 
 class ChapterGenerationService {
@@ -81,13 +87,27 @@ class ChapterGenerationService {
       try {
         Logger.d(_tag, 'Polling chapter generation status');
 
-        final status = await _apiService.checkChapterGenerationStatus(
+        final statusResponse = await _apiService.checkChapterGenerationStatus(
           executionArn: executionArn,
         );
 
-        final isComplete = status['isComplete'] as bool? ?? false;
-        final isFailed = status['isFailed'] as bool? ?? false;
-        final statusString = status['status'] as String? ?? 'UNKNOWN';
+        final isComplete = statusResponse['isComplete'] as bool? ?? false;
+        final isFailed = statusResponse['isFailed'] as bool? ?? false;
+        final statusString = statusResponse['status'] as String? ?? 'UNKNOWN';
+
+        // Extract chapter generation status if available
+        Map<String, ChapterStatus>? chaptersStatus;
+        final chapterStatusData =
+            statusResponse['chapter_generation_status']
+                as Map<String, dynamic>?;
+        if (chapterStatusData != null) {
+          chaptersStatus = {};
+          chapterStatusData.forEach((key, value) {
+            if (value is Map<String, dynamic>) {
+              chaptersStatus![key] = ChapterStatus.fromJson(value);
+            }
+          });
+        }
 
         Logger.d(
           _tag,
@@ -96,13 +116,18 @@ class ChapterGenerationService {
             'isComplete': isComplete,
             'isFailed': isFailed,
             'status': statusString,
+            'hasChapterStatus': chaptersStatus != null,
+            'chapterCount': chaptersStatus?.length ?? 0,
           },
         );
 
         if (isComplete) {
           Logger.i(_tag, 'Chapter generation completed successfully');
           _statusController?.add(
-            ChapterGenerationResult(status: ChapterGenerationStatus.completed),
+            ChapterGenerationResult(
+              status: ChapterGenerationStatus.completed,
+              chaptersStatus: chaptersStatus,
+            ),
           );
           _cleanup();
         } else if (isFailed) {
@@ -111,9 +136,20 @@ class ChapterGenerationService {
             ChapterGenerationResult(
               status: ChapterGenerationStatus.failed,
               error: AppConstants.chapterGenerationFailedMessage,
+              chaptersStatus: chaptersStatus,
             ),
           );
           _cleanup();
+        } else {
+          // Still running - emit intermediate status if we have chapter status updates
+          if (chaptersStatus != null) {
+            _statusController?.add(
+              ChapterGenerationResult(
+                status: ChapterGenerationStatus.running,
+                chaptersStatus: chaptersStatus,
+              ),
+            );
+          }
         }
         // If neither complete nor failed, continue polling
       } catch (e) {
@@ -160,5 +196,18 @@ class ChapterGenerationService {
   void dispose() {
     _cleanup();
     _apiService.dispose();
+  }
+
+  // Check if any chapters need periodic polling (are in PENDING or GENERATING state)
+  static bool shouldPollChapterStatus(
+    Map<String, ChapterStatus> chaptersStatus,
+  ) {
+    return chaptersStatus.values.any(
+      (status) =>
+          status.lessonsStatus == 'PENDING' ||
+          status.lessonsStatus == 'GENERATING' ||
+          status.mcqsStatus == 'PENDING' ||
+          status.mcqsStatus == 'GENERATING',
+    );
   }
 }

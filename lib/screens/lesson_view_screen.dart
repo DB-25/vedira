@@ -3,7 +3,12 @@ import 'package:markdown_widget/markdown_widget.dart';
 
 import '../controllers/lesson_controller.dart';
 import '../models/lesson.dart';
+import '../models/section.dart';
+import '../models/user_progress.dart';
 import '../services/api_service.dart';
+import '../services/mcq_service.dart';
+import '../services/progress_service.dart';
+import '../screens/mcq_quiz_screen.dart';
 import '../utils/logger.dart';
 import '../widgets/code_block_builder.dart';
 import '../widgets/reading_progress_indicator.dart';
@@ -30,6 +35,8 @@ class LessonViewScreen extends StatefulWidget {
 
 class _LessonViewScreenState extends State<LessonViewScreen> {
   final ApiService _apiService = ApiService();
+  final McqService _mcqService = McqService();
+  final ProgressService _progressService = ProgressService();
   final String _tag = 'LessonViewScreen';
   final ScrollController _scrollController = ScrollController();
   final ScrollController _tocScrollController = ScrollController();
@@ -47,11 +54,13 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
   bool _hasReached90Percent =
       false; // Track 90% scroll progress for completion button
   bool _showFab = true; // Always show FAB, but with dynamic behavior
+  bool _hasMcqs = false; // Track if MCQs are available
 
   @override
   void initState() {
     super.initState();
     _loadLessonContent();
+    _checkMcqAvailability();
 
     // Add scroll listener for FAB visibility
     _scrollController.addListener(_scrollListener);
@@ -62,6 +71,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
     _tocScrollController.dispose();
+    _mcqService.dispose();
     super.dispose();
   }
 
@@ -82,14 +92,14 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
     final hasReached90Percent = scrollProgress >= 0.9;
 
     // Update FAB state
-    if (_showScrollToTop != isAtBottom) {
+    if (_showScrollToTop != isAtBottom && mounted) {
       setState(() {
         _showScrollToTop = isAtBottom;
       });
     }
 
     // Update 90% progress state - once true, keep it true (don't hide completion button)
-    if (!_hasReached90Percent && hasReached90Percent) {
+    if (!_hasReached90Percent && hasReached90Percent && mounted) {
       setState(() {
         _hasReached90Percent = true;
       });
@@ -98,6 +108,8 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
 
   // Load lesson content from API or use provided lesson
   Future<void> _loadLessonContent() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
       _error = false;
@@ -106,31 +118,56 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
     try {
       // Use lesson content if provided, otherwise fetch from API
       if (widget.lesson != null && widget.lesson!.content.isNotEmpty) {
-        setState(() {
-          _lessonContentSections = {'section1': widget.lesson!.content};
-          _sectionKeys = ['section1'];
-          _currentSectionIndex = 0;
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _lessonContentSections = {'section1': widget.lesson!.content};
+            _sectionKeys = ['section1'];
+            _currentSectionIndex = 0;
+            _isLoading = false;
+          });
+        }
       } else {
         final contentSections = await _apiService.getLessonContent(
           courseId: widget.courseId,
           chapterId: widget.chapterId,
           lessonId: widget.lessonId,
         );
-        setState(() {
-          _lessonContentSections = contentSections;
-          _sectionKeys = contentSections.keys.toList();
-          _currentSectionIndex = 0;
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _lessonContentSections = contentSections;
+            _sectionKeys = contentSections.keys.toList();
+            _currentSectionIndex = 0;
+            _isLoading = false;
+          });
+        }
       }
     } catch (e) {
       Logger.e(_tag, 'Error loading lesson content', error: e);
-      setState(() {
-        _error = true;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = true;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // Check if MCQs are available for this lesson
+  Future<void> _checkMcqAvailability() async {
+    try {
+      final hasMcqs = await _mcqService.areMcqsAvailable(
+        courseId: widget.courseId,
+        chapterId: widget.chapterId,
+        lessonId: widget.lessonId,
+      );
+
+      if (mounted) {
+        setState(() {
+          _hasMcqs = hasMcqs;
+        });
+      }
+    } catch (e) {
+      Logger.w(_tag, 'Error checking MCQ availability: $e');
     }
   }
 
@@ -157,25 +194,37 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
 
   // Mark the lesson as completed
   Future<void> _markLessonAsCompleted() async {
+    if (!mounted) return;
+
     setState(() {
       _isCompleting = true;
     });
 
     try {
-      // TODO: Implement API call to mark lesson as completed
-      await Future.delayed(const Duration(seconds: 1)); // Simulating API call
+      // Save lesson completion to local progress
+      final success = await _progressService.markLessonCompleted(
+        courseId: widget.courseId,
+        chapterId: widget.chapterId,
+        lessonId: widget.lessonId,
+        lessonName: widget.lessonTitle,
+        studyTimeMinutes: 5, // Estimate - could be more sophisticated
+      );
 
-      // Show success message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Lesson marked as completed'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Return to previous screen
-        Navigator.of(context).pop(true);
+      if (success) {
+        // Show completion dialog instead of just returning
+        if (mounted) {
+          await _showCompletionDialog();
+        }
+      } else {
+        // Show error if saving failed
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to save progress. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       Logger.e(_tag, 'Error marking lesson as completed', error: e);
@@ -203,16 +252,252 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
     }
   }
 
+  Future<void> _showCompletionDialog() async {
+    // Get existing quiz attempts to show in dialog
+    final progress = await _progressService.getCourseProgress(widget.courseId);
+    final chapterProgress = progress?.chapterProgress[widget.chapterId];
+    final attempts = chapterProgress?.quizAttempts[widget.lessonId] ?? [];
+    final bestAttempt =
+        attempts.isNotEmpty
+            ? attempts.reduce(
+              (a, b) => a.scorePercentage > b.scorePercentage ? a : b,
+            )
+            : null;
+
+    if (!mounted) return;
+
+    final theme = Theme.of(context);
+
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false, // Force user to make a choice
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Success icon and message
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check_circle,
+                    color: Colors.green,
+                    size: 40,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Lesson Completed!',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Great job finishing "${widget.lessonTitle}"',
+                  style: theme.textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+
+                // What's next section
+                Text(
+                  'What would you like to do next?',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Quiz option
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.of(context).pop('quiz'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.secondary,
+                      foregroundColor: theme.colorScheme.onSecondary,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.quiz, size: 20),
+                    label: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          bestAttempt != null ? 'Retake Quiz' : 'Take Quiz',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (bestAttempt != null)
+                          Text(
+                            'Best score: ${bestAttempt.score}/${bestAttempt.totalQuestions} (${bestAttempt.scorePercentage.round()}%)',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: theme.colorScheme.onSecondary.withOpacity(
+                                0.8,
+                              ),
+                            ),
+                          )
+                        else
+                          Text(
+                            'Test your knowledge of this lesson',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: theme.colorScheme.onSecondary.withOpacity(
+                                0.8,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Next lesson option
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).pop('next'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      side: BorderSide(color: theme.colorScheme.primary),
+                    ),
+                    icon: Icon(
+                      Icons.arrow_forward,
+                      size: 20,
+                      color: theme.colorScheme.primary,
+                    ),
+                    label: Text(
+                      'Continue to Next Lesson',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Back to course option
+                Container(
+                  width: double.infinity,
+                  child: TextButton.icon(
+                    onPressed: () => Navigator.of(context).pop('back'),
+                    icon: Icon(
+                      Icons.list,
+                      size: 20,
+                      color: theme.colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                    label: Text(
+                      'Back to Chapter Overview',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: theme.colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    // Handle user's choice
+    if (result != null && mounted) {
+      switch (result) {
+        case 'quiz':
+          // Navigate to quiz
+          _navigateToMcqQuiz();
+          break;
+        case 'next':
+          // TODO: Navigate to next lesson (would need to determine which is next)
+          Navigator.of(
+            context,
+          ).pop(true); // For now, go back with completion indicator
+          break;
+        case 'back':
+          Navigator.of(context).pop(true); // Go back to course details
+          break;
+      }
+    }
+  }
+
   // Change the font size
   void _changeFontSize(FontSize size) {
-    setState(() {
-      _fontSize = size;
-    });
-    // Show a confirmation of the change
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Font size changed to ${size.name}'),
-        duration: const Duration(seconds: 1),
+    if (mounted) {
+      setState(() {
+        _fontSize = size;
+      });
+      // Show a confirmation of the change
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Font size changed to ${size.name}'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  void _navigateToMcqQuiz() async {
+    // Try to fetch section information to enable next lesson navigation
+    Section? section;
+    int? currentLessonIndex;
+
+    try {
+      final course = await _apiService.getCourse(widget.courseId);
+
+      // Find the section that contains this lesson
+      if (course.sections != null) {
+        for (final s in course.sections!) {
+          final lessonIndex = s.lessons.indexWhere(
+            (l) => l.id == widget.lessonId,
+          );
+          if (lessonIndex >= 0) {
+            section = s;
+            currentLessonIndex = lessonIndex;
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      Logger.w(_tag, 'Failed to fetch section info for quiz navigation: $e');
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => McqQuizScreen(
+              courseId: widget.courseId,
+              chapterId: widget.chapterId,
+              lessonId: widget.lessonId,
+              lessonTitle: widget.lessonTitle,
+              section: section,
+              currentLessonIndex: currentLessonIndex,
+            ),
       ),
     );
   }
@@ -239,6 +524,12 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
             icon: const Icon(Icons.menu),
             tooltip: 'Table of Contents',
             onPressed: _toggleToc,
+          ),
+          // MCQ button
+          IconButton(
+            icon: const Icon(Icons.quiz),
+            tooltip: 'Take Quiz',
+            onPressed: _hasMcqs ? _navigateToMcqQuiz : null,
           ),
         ],
       ),
@@ -627,7 +918,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
 
   // Navigate to previous section
   void _goToPreviousSection() {
-    if (_currentSectionIndex > 0) {
+    if (_currentSectionIndex > 0 && mounted) {
       setState(() {
         _currentSectionIndex--;
         _hasReached90Percent =
@@ -649,7 +940,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
 
   // Navigate to next section
   void _goToNextSection() {
-    if (_currentSectionIndex < _sectionKeys.length - 1) {
+    if (_currentSectionIndex < _sectionKeys.length - 1 && mounted) {
       setState(() {
         _currentSectionIndex++;
         _hasReached90Percent =
