@@ -4,7 +4,6 @@ class AppConstants {
   // API Constants
   static const String apiBaseUrl =
       'https://i7cicaxvzf.execute-api.us-east-1.amazonaws.com/prod';
-  static const String defaultUserId = 'rs';
 
   // App Theme Colors
   static const Color primaryColorLight = Colors.teal;
@@ -73,7 +72,9 @@ class AppConstants {
   static const bool enableCreateCourse =
       false; // Set to true when create course feature is implemented
   static const bool enableUserAuthentication =
-      false; // Set to true when authentication is implemented
+      true; // Authentication is now implemented
+  static const bool useBackwardUserId =
+      true; // For testing: when true, adds user_id=rs to API calls
 
   // Course Generation
   static const String generatingCourseMessage = 'Generating course plan...';

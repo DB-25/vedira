@@ -24,7 +24,6 @@ class ChapterGenerationService {
   Stream<ChapterGenerationResult> generateChapter({
     required String courseId,
     required String chapterId,
-    String userId = AppConstants.defaultUserId,
   }) async* {
     _statusController = StreamController<ChapterGenerationResult>();
 
@@ -32,14 +31,13 @@ class ChapterGenerationService {
       Logger.i(
         _tag,
         'Starting chapter generation',
-        data: {'courseId': courseId, 'chapterId': chapterId, 'userId': userId},
+        data: {'courseId': courseId, 'chapterId': chapterId},
       );
 
       // Trigger chapter generation
       final response = await _apiService.generateChapter(
         courseId: courseId,
         chapterId: chapterId,
-        userId: userId,
       );
 
       final executionArn = response['executionArn'] as String?;

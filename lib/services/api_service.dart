@@ -1,38 +1,41 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
-
 import '../models/course.dart';
 import '../models/lesson_plan.dart';
 import '../utils/constants.dart';
 import '../utils/logger.dart';
 import 'connectivity_service.dart';
+import 'api_client.dart';
 
 class ApiService {
   // Base URL for the API
   final String baseUrl = AppConstants.apiBaseUrl;
   final String _tag = 'ApiService';
   final ConnectivityService _connectivityService = ConnectivityService();
+  final ApiClient _apiClient = ApiClient.instance;
 
   // Get all courses from API
-  Future<List<Course>> getCourseList({
-    String userId = AppConstants.defaultUserId,
-  }) async {
-    final endpoint = '/get-course-list?user_id=$userId';
-    final url = '$baseUrl$endpoint';
+  Future<List<Course>> getCourseList() async {
+    final endpoint = '/get-course-list';
+    String url = '$baseUrl$endpoint';
 
-    Logger.i(_tag, 'Fetching course list for user: $userId');
+    // Conditionally append user_id for testing
+    if (AppConstants.useBackwardUserId) {
+      url += '?user_id=rs';
+    }
+
+    Logger.i(_tag, 'Fetching course list');
 
     // Check if internet is available
     bool isConnected = await _connectivityService.isInternetAvailable();
     if (!isConnected) {
-      final error = '${AppConstants.errorNoInternet}';
+      final error = AppConstants.errorNoInternet;
       Logger.e(_tag, error);
       throw Exception(error);
     }
 
     try {
-      final response = await http.get(Uri.parse(url));
+      final response = await _apiClient.get(url);
 
       Logger.api(
         'GET',
@@ -66,12 +69,11 @@ class ApiService {
     required String timeline,
     required String difficulty,
     String? customInstructions,
-    String userId = AppConstants.defaultUserId,
   }) async {
     // Check if internet is available
     bool isConnected = await _connectivityService.isInternetAvailable();
     if (!isConnected) {
-      final error = '${AppConstants.errorNoInternet}';
+      final error = AppConstants.errorNoInternet;
       Logger.e(_tag, error);
       throw Exception(error);
     }
@@ -84,17 +86,17 @@ class ApiService {
       'timeline': timeline,
       'difficulty': difficulty,
       'custom_instructions': customInstructions ?? '',
-      'user_id': userId,
     };
+
+    // Conditionally append user_id for testing
+    if (AppConstants.useBackwardUserId) {
+      body['user_id'] = 'rs';
+    }
 
     Logger.i(_tag, 'Generating course plan for topic: $topic', data: body);
 
     try {
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(body),
-      );
+      final response = await _apiClient.post(url, body: body);
 
       Logger.api(
         'POST',
@@ -131,10 +133,7 @@ class ApiService {
   }
 
   // Get a specific course by ID using the lesson plan endpoint
-  Future<Course> getCourse(
-    String id, {
-    String userId = AppConstants.defaultUserId,
-  }) async {
+  Future<Course> getCourse(String id) async {
     // Validate id parameter
     if (id.isEmpty) {
       Logger.e(_tag, 'Empty course ID provided to getCourse method');
@@ -144,18 +143,23 @@ class ApiService {
     // Check if internet is available
     bool isConnected = await _connectivityService.isInternetAvailable();
     if (!isConnected) {
-      final error = '${AppConstants.errorNoInternet}';
+      final error = AppConstants.errorNoInternet;
       Logger.e(_tag, error);
       throw Exception(error);
     }
 
-    final endpoint = '/get-course-plan?course_id=$id&user_id=$userId';
-    final url = '$baseUrl$endpoint';
+    final endpoint = '/get-course-plan';
+    String url = '$baseUrl$endpoint?course_id=$id';
 
-    Logger.i(_tag, 'Fetching course details for ID: "$id", user ID: "$userId"');
+    // Conditionally append user_id for testing
+    if (AppConstants.useBackwardUserId) {
+      url += '&user_id=rs';
+    }
+
+    Logger.i(_tag, 'Fetching course details for ID: "$id"');
 
     try {
-      final response = await http.get(Uri.parse(url));
+      final response = await _apiClient.get(url);
 
       Logger.api(
         'GET',
@@ -225,19 +229,23 @@ class ApiService {
     required String courseId,
     required String chapterId,
     required String lessonId,
-    String userId = AppConstants.defaultUserId,
   }) async {
     // Check if internet is available
     bool isConnected = await _connectivityService.isInternetAvailable();
     if (!isConnected) {
-      final error = '${AppConstants.errorNoInternet}';
+      final error = AppConstants.errorNoInternet;
       Logger.e(_tag, error);
       throw Exception(error);
     }
 
-    final endpoint =
-        '/get-lesson-content?course_id=$courseId&user_id=$userId&chapter_id=$chapterId&lesson_id=$lessonId';
-    final url = '$baseUrl$endpoint';
+    final endpoint = '/get-lesson-content';
+    String url =
+        '$baseUrl$endpoint?course_id=$courseId&chapter_id=$chapterId&lesson_id=$lessonId';
+
+    // Conditionally append user_id for testing
+    if (AppConstants.useBackwardUserId) {
+      url += '&user_id=rs';
+    }
 
     Logger.i(
       _tag,
@@ -246,12 +254,11 @@ class ApiService {
         'courseId': courseId,
         'chapterId': chapterId,
         'lessonId': lessonId,
-        'userId': userId,
       },
     );
 
     try {
-      final response = await http.get(Uri.parse(url));
+      final response = await _apiClient.get(url);
 
       Logger.api(
         'GET',
@@ -322,12 +329,11 @@ class ApiService {
   Future<Map<String, dynamic>> generateChapter({
     required String courseId,
     required String chapterId,
-    String userId = AppConstants.defaultUserId,
   }) async {
     // Check if internet is available
     bool isConnected = await _connectivityService.isInternetAvailable();
     if (!isConnected) {
-      final error = '${AppConstants.errorNoInternet}';
+      final error = AppConstants.errorNoInternet;
       Logger.e(_tag, error);
       throw Exception(error);
     }
@@ -335,24 +341,21 @@ class ApiService {
     final endpoint = '/generate-chapter';
     final url = '$baseUrl$endpoint';
 
-    final body = {
-      'course_id': courseId,
-      'user_id': userId,
-      'chapter_id': chapterId,
-    };
+    final body = {'course_id': courseId, 'chapter_id': chapterId};
+
+    // Conditionally append user_id for testing
+    if (AppConstants.useBackwardUserId) {
+      body['user_id'] = 'rs';
+    }
 
     Logger.i(
       _tag,
       'Triggering chapter content generation',
-      data: {'courseId': courseId, 'chapterId': chapterId, 'userId': userId},
+      data: {'courseId': courseId, 'chapterId': chapterId},
     );
 
     try {
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(body),
-      );
+      final response = await _apiClient.post(url, body: body);
 
       Logger.api(
         'POST',
@@ -409,7 +412,7 @@ class ApiService {
     );
 
     try {
-      final response = await http.get(Uri.parse(url));
+      final response = await _apiClient.get(url);
 
       Logger.api(
         'GET',

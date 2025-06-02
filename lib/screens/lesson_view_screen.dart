@@ -120,7 +120,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
         );
         setState(() {
           _lessonContentSections = contentSections;
-          _sectionKeys = contentSections.keys.toList()..sort();
+          _sectionKeys = contentSections.keys.toList();
           _currentSectionIndex = 0;
           _isLoading = false;
         });

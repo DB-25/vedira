@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/course.dart';
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import '../utils/theme_manager.dart';
 import '../utils/logger.dart';
 import 'home_screen.dart';
+import 'login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -18,14 +20,13 @@ class _SplashScreenState extends State<SplashScreen> {
   final String _tag = 'SplashScreen';
   bool _initialized = false;
   final ApiService _apiService = ApiService();
+  final AuthService _authService = AuthService.instance;
   late Future<List<Course>> _coursesFuture;
 
   @override
   void initState() {
     super.initState();
     Logger.i(_tag, 'Initializing splash screen');
-    // Preload courses while initializing app
-    _coursesFuture = _apiService.getCourseList();
     _initializeApp();
   }
 
@@ -59,25 +60,54 @@ class _SplashScreenState extends State<SplashScreen> {
       Logger.i(_tag, 'Theme is now initialized');
     }
 
-    // Wait for courses to load
-    List<Course> courses = [];
-    try {
-      courses = await _coursesFuture;
-      Logger.i(_tag, 'Preloaded ${courses.length} courses successfully');
-    } catch (e) {
-      Logger.e(_tag, 'Error preloading courses', error: e);
-      // Continue with empty courses list
+    // Check authentication status
+    Logger.i(_tag, 'Checking authentication status');
+    final isLoggedIn = await _authService.isLoggedIn();
+    Logger.i(_tag, 'User logged in: $isLoggedIn');
+
+    if (isLoggedIn) {
+      // User is logged in, preload courses
+      Logger.i(_tag, 'User is authenticated, preloading courses');
+      _coursesFuture = _apiService.getCourseList();
+
+      try {
+        final courses = await _coursesFuture;
+        Logger.i(_tag, 'Preloaded ${courses.length} courses successfully');
+      } catch (e) {
+        Logger.e(_tag, 'Error preloading courses', error: e);
+        // Continue with empty courses list
+        _coursesFuture = Future.value([]);
+      }
     }
 
     if (!mounted) return;
 
-    Logger.i(
-      _tag,
-      'App initialization complete, navigating to HomeScreen with preloaded courses',
-    );
+    Logger.i(_tag, 'App initialization complete');
     setState(() {
       _initialized = true;
     });
+  }
+
+  void _navigateToNextScreen() async {
+    if (!mounted) return;
+
+    final isLoggedIn = await _authService.isLoggedIn();
+
+    if (!mounted) return;
+
+    if (isLoggedIn) {
+      Logger.i(_tag, 'Navigating to HomeScreen (authenticated)');
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => HomeScreen(preloadedCourses: _coursesFuture),
+        ),
+      );
+    } else {
+      Logger.i(_tag, 'Navigating to LoginScreen (not authenticated)');
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+    }
   }
 
   @override
@@ -86,15 +116,11 @@ class _SplashScreenState extends State<SplashScreen> {
     final isDarkMode = themeManager.isDarkMode;
     final colorScheme = Theme.of(context).colorScheme;
 
-    // Navigate to HomeScreen once initialization is complete
+    // Navigate based on authentication status once initialization is complete
     if (_initialized) {
       // Use a post-frame callback to navigate after the current frame completes
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => HomeScreen(preloadedCourses: _coursesFuture),
-          ),
-        );
+        _navigateToNextScreen();
       });
     }
 

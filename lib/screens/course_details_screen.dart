@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../models/course.dart';
 import '../models/section.dart';
 import '../services/api_service.dart';
-import '../utils/constants.dart';
 import '../utils/logger.dart';
 import '../widgets/lesson_tile.dart';
 import '../widgets/section_tile.dart';
@@ -53,10 +52,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
     Logger.i(_tag, 'Loading course details for ID: ${widget.courseId}');
     setState(() {
       // Use the course endpoint which now directly calls the lesson plan API
-      _courseFuture = _apiService.getCourse(
-        widget.courseId,
-        userId: AppConstants.defaultUserId,
-      );
+      _courseFuture = _apiService.getCourse(widget.courseId);
     });
   }
 
