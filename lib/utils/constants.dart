@@ -8,8 +8,8 @@ class AppConstants {
   // App Theme Colors
   static const Color primaryColorLight = Colors.teal;
   static const Color primaryColorDark = Color(0xFF26D7AE);
-  static const Color accentColorLight = Color(0xFF7E57C2);
-  static const Color accentColorDark = Color(0xFFB388FF);
+  static const Color accentColorLight = Color(0xFF1E90FF);
+  static const Color accentColorDark = Color(0xFF42A5F5);
   static const Color backgroundColorLight = Color(0xFFFAFAFA);
   static const Color backgroundColorDark = Color(0xFF121212);
   static const Color cardColorLight = Color(0xFFF5F5F5);
