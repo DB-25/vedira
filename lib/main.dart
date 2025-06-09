@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 
 import 'screens/splash_screen.dart';
+import 'screens/login_screen.dart';
+import 'services/auth_service.dart';
 import 'utils/logger.dart';
 import 'utils/theme_manager.dart';
 
@@ -38,17 +41,88 @@ void main() async {
 class LessonBuddyApp extends StatelessWidget {
   const LessonBuddyApp({super.key});
 
+  // Global navigator key for authentication navigation
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
     final themeManager = Provider.of<ThemeManager>(context);
 
-    return MaterialApp(
-      title: 'Lesson Buddy',
-      theme: lessonBuddyLightTheme,
-      darkTheme: lessonBuddyDarkTheme,
-      themeMode: themeManager.themeMode,
-      home: const SplashScreen(),
-      debugShowCheckedModeBanner: false,
+    return AuthWrapper(
+      child: MaterialApp(
+        navigatorKey: navigatorKey,
+        title: 'Lesson Buddy',
+        theme: lessonBuddyLightTheme,
+        darkTheme: lessonBuddyDarkTheme,
+        themeMode: themeManager.themeMode,
+        home: const SplashScreen(),
+        debugShowCheckedModeBanner: false,
+      ),
     );
+  }
+}
+
+class AuthWrapper extends StatefulWidget {
+  final Widget child;
+
+  const AuthWrapper({super.key, required this.child});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  final AuthService _authService = AuthService.instance;
+  StreamSubscription<AuthEvent>? _authSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupAuthListener();
+  }
+
+  void _setupAuthListener() {
+    _authSubscription = _authService.authEvents.listen((event) {
+      if (!mounted) return;
+
+      switch (event.type) {
+        case AuthEventType.loginRequired:
+        case AuthEventType.loggedOut:
+          Logger.i(
+            'AuthWrapper',
+            'Authentication required, navigating to login',
+          );
+
+          // Use global navigator key to navigate from anywhere in the app
+          final navigator = LessonBuddyApp.navigatorKey.currentState;
+          if (navigator != null) {
+            navigator.pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const LoginScreen()),
+              (route) => false,
+            );
+          } else {
+            Logger.e(
+              'AuthWrapper',
+              'Navigator not available for auth navigation',
+            );
+          }
+          break;
+        case AuthEventType.tokenRefreshed:
+          Logger.i('AuthWrapper', 'Token refreshed successfully');
+          break;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
   }
 }

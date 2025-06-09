@@ -60,14 +60,14 @@ class ApiClient {
       ...?headers,
     };
 
-    // Add authorization header if user is logged in
-    final isLoggedIn = await _authService.isLoggedIn();
-    if (isLoggedIn) {
-      final accessToken = await _authService.getAccessToken();
-      if (accessToken != null) {
-        requestHeaders['Authorization'] = 'Bearer $accessToken';
-        Logger.d(_tag, 'Added Authorization header to $method request');
-      }
+    // Add authorization header if we have an ID token
+    final idToken = await _authService.getIdToken();
+    if (idToken != null) {
+      requestHeaders['Authorization'] = 'Bearer $idToken';
+      Logger.d(
+        _tag,
+        'Added Authorization header (ID token) to $method request',
+      );
     }
 
     // Make the initial request
@@ -78,40 +78,64 @@ class ApiClient {
       body: body,
     );
 
-    // Handle 401 Unauthorized - try token refresh
-    if (response.statusCode == 401 && isLoggedIn) {
-      Logger.i(_tag, 'Received 401, attempting token refresh');
+    // Handle 401 Unauthorized - try token refresh if we have tokens
+    if (response.statusCode == 401) {
+      Logger.i(_tag, 'Received 401 Unauthorized, attempting token refresh');
 
-      final refreshSuccess = await _authService.refreshToken();
-      if (refreshSuccess) {
-        Logger.i(_tag, 'Token refresh successful, retrying original request');
+      final refreshToken = await _authService.getRefreshToken();
+      if (refreshToken != null) {
+        Logger.d(_tag, 'Refresh token available, attempting refresh');
+        final refreshSuccess = await _authService.refreshToken();
+        if (refreshSuccess) {
+          Logger.i(_tag, 'Token refresh successful, retrying original request');
 
-        // Update authorization header with new token
-        final newAccessToken = await _authService.getAccessToken();
-        if (newAccessToken != null) {
-          requestHeaders['Authorization'] = 'Bearer $newAccessToken';
+          // Update authorization header with new token
+          final newIdToken = await _authService.getIdToken();
+          if (newIdToken != null) {
+            requestHeaders['Authorization'] = 'Bearer $newIdToken';
 
-          // Retry the original request
-          response = await _executeRequest(
-            method,
-            url,
-            headers: requestHeaders,
-            body: body,
-          );
+            // Retry the original request
+            response = await _executeRequest(
+              method,
+              url,
+              headers: requestHeaders,
+              body: body,
+            );
 
-          Logger.d(
-            _tag,
-            'Retried request after token refresh, status: ${response.statusCode}',
-          );
+            Logger.d(
+              _tag,
+              'Retried request after token refresh, status: ${response.statusCode}',
+            );
+          } else {
+            Logger.e(_tag, 'No new ID token available after refresh');
+            await _handleAuthFailure();
+          }
+        } else {
+          Logger.e(_tag, 'Token refresh failed, logging out user');
+          await _handleAuthFailure();
         }
       } else {
-        Logger.e(_tag, 'Token refresh failed, user needs to re-authenticate');
-        // Token refresh failed, user needs to log in again
-        await _authService.logout();
+        Logger.e(_tag, 'No refresh token available, logging out user');
+        await _handleAuthFailure();
       }
     }
 
     return response;
+  }
+
+  /// Handle authentication failure by logging out and notifying the user
+  Future<void> _handleAuthFailure() async {
+    Logger.i(_tag, 'Handling authentication failure');
+    await _authService.logout();
+
+    // Small delay to ensure logout cleanup is complete
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    _authService.notifyLoginRequired('Authentication token expired');
+    Logger.i(_tag, 'User logged out due to authentication failure');
+
+    // Note: Navigation should be handled by the UI layer listening to auth state
+    // We can't navigate directly from a service class
   }
 
   /// Execute the actual HTTP request

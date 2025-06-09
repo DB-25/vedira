@@ -1,7 +1,18 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
+
+// Authentication event types
+enum AuthEventType { loginRequired, tokenRefreshed, loggedOut }
+
+class AuthEvent {
+  final AuthEventType type;
+  final String? message;
+
+  AuthEvent(this.type, {this.message});
+}
 
 class AuthService {
   static const String _tag = 'AuthService';
@@ -16,6 +27,13 @@ class AuthService {
 
   static AuthService? _instance;
   SharedPreferences? _prefs;
+
+  // Stream controller for authentication state changes
+  final StreamController<AuthEvent> _authEventController =
+      StreamController<AuthEvent>.broadcast();
+
+  // Stream for UI to listen to auth events
+  Stream<AuthEvent> get authEvents => _authEventController.stream;
 
   AuthService._internal();
 
@@ -59,6 +77,12 @@ class AuthService {
     return _prefs!.getString(_refreshTokenKey);
   }
 
+  // Get ID token from SharedPreferences
+  Future<String?> getIdToken() async {
+    await _initPrefs();
+    return _prefs!.getString(_idTokenKey);
+  }
+
   // Check if user is logged in (has valid access token)
   Future<bool> isLoggedIn() async {
     await _initPrefs();
@@ -86,13 +110,21 @@ class AuthService {
   }
 
   // Sign up a new user
-  Future<Map<String, dynamic>> signUp(String email, String password) async {
+  Future<Map<String, dynamic>> signUp(
+    String email,
+    String password,
+    String phoneNumber,
+  ) async {
     const endpoint = '/prod/auth/signup';
     final url = '$_baseUrl$endpoint';
 
     Logger.i(_tag, 'Attempting signup for email: $email');
 
-    final requestBody = {'email': email, 'password': password};
+    final requestBody = {
+      'email': email,
+      'password': password,
+      'phone_number': phoneNumber,
+    };
 
     try {
       final response = await http.post(
@@ -113,15 +145,23 @@ class AuthService {
 
       if (response.statusCode == 200) {
         Logger.i(_tag, 'Signup successful for email: $email');
+
+        final username = responseData['userSub'] ?? responseData['username'];
+        Logger.d(
+          _tag,
+          'Extracted username/userSub for verification: $username',
+        );
+
         return {
           'success': true,
           'message':
               responseData['message'] ??
               'Account created successfully. Please check your email for verification code.',
-          'username': responseData['username'],
+          'username': username,
         };
       } else {
-        final errorMessage = responseData['message'] ?? 'Signup failed';
+        final errorMessage =
+            responseData['message'] ?? responseData['error'] ?? 'Signup failed';
         Logger.e(_tag, 'Signup failed: $errorMessage');
         return {'success': false, 'message': errorMessage};
       }
@@ -141,7 +181,7 @@ class AuthService {
 
     Logger.i(_tag, 'Attempting code verification for username: $username');
 
-    final requestBody = {'username': username, 'code': code};
+    final requestBody = {'username': username, 'confirmation_code': code};
 
     try {
       final response = await http.post(
@@ -169,7 +209,10 @@ class AuthService {
               'Email verified successfully. You can now sign in.',
         };
       } else {
-        final errorMessage = responseData['message'] ?? 'Verification failed';
+        final errorMessage =
+            responseData['message'] ??
+            responseData['error'] ??
+            'Verification failed';
         Logger.e(_tag, 'Code verification failed: $errorMessage');
         return {'success': false, 'message': errorMessage};
       }
@@ -217,7 +260,10 @@ class AuthService {
               'Verification code resent successfully.',
         };
       } else {
-        final errorMessage = responseData['message'] ?? 'Failed to resend code';
+        final errorMessage =
+            responseData['message'] ??
+            responseData['error'] ??
+            'Failed to resend code';
         Logger.e(_tag, 'Resend code failed: $errorMessage');
         return {'success': false, 'message': errorMessage};
       }
@@ -285,7 +331,8 @@ class AuthService {
           'message': 'Login failed: Invalid response from server',
         };
       } else {
-        final errorMessage = responseData['message'] ?? 'Login failed';
+        final errorMessage =
+            responseData['message'] ?? responseData['error'] ?? 'Login failed';
         Logger.e(_tag, 'Signin failed: $errorMessage');
         return {'success': false, 'message': errorMessage};
       }
@@ -348,6 +395,7 @@ class AuthService {
             await _prefs!.setString(_tokenExpiryKey, expiry.toIso8601String());
 
             Logger.i(_tag, 'Token refresh successful');
+            _authEventController.add(AuthEvent(AuthEventType.tokenRefreshed));
             return true;
           }
         }
@@ -356,7 +404,10 @@ class AuthService {
         Logger.e(_tag, 'Full refresh response structure: $responseData');
         return false;
       } else {
-        final errorMessage = responseData['message'] ?? 'Token refresh failed';
+        final errorMessage =
+            responseData['message'] ??
+            responseData['error'] ??
+            'Token refresh failed';
         Logger.e(_tag, 'Token refresh failed: $errorMessage');
         return false;
       }
@@ -376,5 +427,21 @@ class AuthService {
     await _prefs!.remove(_tokenExpiryKey);
 
     Logger.i(_tag, 'User logged out successfully');
+
+    // Notify UI about logout
+    _authEventController.add(AuthEvent(AuthEventType.loggedOut));
+  }
+
+  // Notify UI that login is required
+  void notifyLoginRequired(String reason) {
+    Logger.i(_tag, 'Login required: $reason');
+    _authEventController.add(
+      AuthEvent(AuthEventType.loginRequired, message: reason),
+    );
+  }
+
+  // Dispose resources
+  void dispose() {
+    _authEventController.close();
   }
 }

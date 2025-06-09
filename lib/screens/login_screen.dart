@@ -4,6 +4,7 @@ import '../utils/constants.dart';
 import '../utils/logger.dart';
 import 'verification_screen.dart';
 import 'home_screen.dart';
+import 'privacy_policy_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,6 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _phoneController = TextEditingController();
   final AuthService _authService = AuthService.instance;
 
   bool _isLoading = false;
@@ -31,6 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -66,6 +69,21 @@ class _LoginScreenState extends State<LoginScreen> {
     return null;
   }
 
+  String? _validatePhoneNumber(String? value) {
+    if (_isSignUpMode) {
+      if (value == null || value.isEmpty) {
+        return 'Phone number is required';
+      }
+      // Basic phone number validation (adjust regex based on your requirements)
+      if (!RegExp(
+        r'^\+?[\d\s\-\(\)]{10,}$',
+      ).hasMatch(value.replaceAll(' ', ''))) {
+        return 'Please enter a valid phone number';
+      }
+    }
+    return null;
+  }
+
   void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -85,6 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final result = await _authService.signUp(
         _emailController.text.trim(),
         _passwordController.text,
+        _phoneController.text.trim(),
       );
 
       if (result['success']) {
@@ -207,6 +226,27 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: AppConstants.defaultPadding),
+
+                  // Phone number field (only for signup)
+                  if (_isSignUpMode) ...[
+                    TextFormField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.next,
+                      validator: _validatePhoneNumber,
+                      decoration: InputDecoration(
+                        labelText: 'Phone Number',
+                        hintText: '+1 (555) 123-4567',
+                        prefixIcon: const Icon(Icons.phone_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: colorScheme.surface,
+                      ),
+                    ),
+                    const SizedBox(height: AppConstants.defaultPadding),
+                  ],
 
                   // Password field
                   TextFormField(
@@ -335,6 +375,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     _emailController.clear();
                                     _passwordController.clear();
                                     _confirmPasswordController.clear();
+                                    _phoneController.clear();
                                   });
                                 },
                         child: Text(
@@ -346,6 +387,85 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ],
+                  ),
+
+                  // Privacy policy link (especially important for signup)
+                  if (_isSignUpMode) ...[
+                    const SizedBox(height: AppConstants.defaultPadding),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: colorScheme.outline.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            size: 20,
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'By signing up, you agree to our',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurface.withOpacity(0.7),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (context) => const PrivacyPolicyScreen(),
+                                ),
+                              );
+                            },
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              'Privacy Policy',
+                              style: TextStyle(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  // Footer privacy link for both modes
+                  const SizedBox(height: AppConstants.largePadding),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const PrivacyPolicyScreen(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      'Privacy Policy',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurface.withOpacity(0.6),
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
                   ),
                 ],
               ),

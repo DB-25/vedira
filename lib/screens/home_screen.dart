@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/course.dart';
 import '../screens/create_course_screen.dart';
 import '../screens/login_screen.dart';
+import '../screens/privacy_policy_screen.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../utils/theme_manager.dart';
@@ -147,10 +148,28 @@ class _HomeScreenState extends State<HomeScreen> {
             onSelected: (value) {
               if (value == 'logout') {
                 _handleLogout();
+              } else if (value == 'privacy') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PrivacyPolicyScreen(),
+                  ),
+                );
               }
             },
             itemBuilder:
                 (context) => [
+                  const PopupMenuItem(
+                    value: 'privacy',
+                    child: Row(
+                      children: [
+                        Icon(Icons.privacy_tip_outlined),
+                        SizedBox(width: 8),
+                        Text('Privacy Policy'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuDivider(),
                   const PopupMenuItem(
                     value: 'logout',
                     child: Row(
@@ -218,31 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
               Logger.w(_tag, 'No courses available');
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.inventory_2_outlined,
-                      size: 60,
-                      color: Theme.of(context).colorScheme.secondary,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No courses available',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: () {
-                        Logger.i(_tag, 'User refreshing empty course list');
-                        _refreshCourses();
-                      },
-                      child: const Text('Refresh'),
-                    ),
-                  ],
-                ),
-              );
+              return _buildOnboardingExperience();
             }
 
             final courses = snapshot.data!;
@@ -268,6 +263,232 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildOnboardingExperience() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const SizedBox(height: 40),
+
+          // Welcome header
+          Icon(Icons.school_rounded, size: 80, color: colorScheme.primary),
+          const SizedBox(height: 24),
+
+          Text(
+            'Welcome to Lesson Buddy!',
+            style: theme.textTheme.headlineLarge?.copyWith(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+
+          Text(
+            'Your AI-powered learning companion',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: colorScheme.primary,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 40),
+
+          // Value proposition cards
+          _buildFeatureCard(
+            icon: Icons.auto_awesome,
+            title: 'AI-Generated Courses',
+            description:
+                'Simply tell us what you want to learn, and we\'ll create a personalized course with structured lessons, quizzes, and reading materials tailored just for you.',
+            colorScheme: colorScheme,
+            theme: theme,
+          ),
+          const SizedBox(height: 20),
+
+          _buildFeatureCard(
+            icon: Icons.timeline,
+            title: 'Your Learning Timeline',
+            description:
+                'Set your own pace! Whether you have 1 week or 3 months, we\'ll break down complex topics into manageable daily lessons that fit your schedule.',
+            colorScheme: colorScheme,
+            theme: theme,
+          ),
+          const SizedBox(height: 20),
+
+          _buildFeatureCard(
+            icon: Icons.quiz,
+            title: 'Test Your Knowledge',
+            description:
+                'Reinforce what you\'ve learned with interactive quizzes after each lesson. Track your progress and identify areas that need more attention.',
+            colorScheme: colorScheme,
+            theme: theme,
+          ),
+          const SizedBox(height: 20),
+
+          _buildFeatureCard(
+            icon: Icons.trending_up,
+            title: 'Track Your Progress',
+            description:
+                'Watch your knowledge grow! Monitor completion rates, quiz scores, and learning streaks to stay motivated on your educational journey.',
+            colorScheme: colorScheme,
+            theme: theme,
+          ),
+          const SizedBox(height: 40),
+
+          // Call to action
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  colorScheme.primary.withOpacity(0.1),
+                  colorScheme.secondary.withOpacity(0.1),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: colorScheme.primary.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.rocket_launch, size: 48, color: colorScheme.primary),
+                const SizedBox(height: 16),
+                Text(
+                  'Ready to start learning?',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Create your first course in under 2 minutes. Just tell us what you want to learn, and we\'ll handle the rest!',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: colorScheme.onSurface.withOpacity(0.8),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Logger.i(
+                        _tag,
+                        'User starting first course creation from onboarding',
+                      );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const CreateCourseScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.add_circle_outline),
+                    label: const Text(
+                      'Create My First Course',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 16,
+                        horizontal: 24,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureCard({
+    required IconData icon,
+    required String title,
+    required String description,
+    required ColorScheme colorScheme,
+    required ThemeData theme,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: colorScheme.outline.withOpacity(0.3),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 28, color: colorScheme.primary),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  description,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurface.withOpacity(0.8),
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

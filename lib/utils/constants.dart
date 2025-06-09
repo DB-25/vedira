@@ -75,7 +75,7 @@ class AppConstants {
   static const bool enableUserAuthentication =
       true; // Authentication is now implemented
   static const bool useBackwardUserId =
-      true; // For testing: when true, adds user_id=rs to API calls
+      false; // For testing: when true, adds user_id=rs to API calls
 
   // Course Generation
   static const String generatingCourseMessage = 'Generating course plan...';

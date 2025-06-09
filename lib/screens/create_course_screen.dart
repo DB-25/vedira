@@ -160,101 +160,248 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Course'),
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
+        title: const Text('Create Your Course'),
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
+        elevation: 0,
       ),
       body: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(20.0),
             child: Form(
               key: _formKey,
-              child: ListView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Generate a New Course Plan',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      color: colorScheme.onSurface,
-                      fontWeight: FontWeight.bold,
+                  // Header Section
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          colorScheme.primary.withOpacity(0.1),
+                          colorScheme.secondary.withOpacity(0.1),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: colorScheme.primary.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.auto_awesome,
+                          size: 48,
+                          color: colorScheme.primary,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Let\'s Create Your Perfect Course!',
+                          style: theme.textTheme.headlineMedium?.copyWith(
+                            color: colorScheme.onSurface,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Tell us what you want to learn, and our AI will craft a personalized learning journey just for you.',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: colorScheme.onSurface.withOpacity(0.8),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
+
+                  // What do you want to learn?
+                  _buildSectionHeader(
+                    icon: Icons.lightbulb_outline,
+                    title: 'What do you want to learn?',
+                    subtitle: 'Choose any topic that interests you',
+                    theme: theme,
+                    colorScheme: colorScheme,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Topic suggestions
+                  _buildTopicSuggestions(colorScheme, theme),
+                  const SizedBox(height: 16),
+
                   TextFormField(
                     controller: _topicController,
-                    decoration: const InputDecoration(
-                      labelText: 'Topic',
-                      hintText: 'e.g. Python, Flutter, Machine Learning',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: 'Your Learning Topic',
+                      hintText: 'Type anything you\'re curious about...',
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: colorScheme.primary,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      filled: true,
+                      fillColor: colorScheme.surface,
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter a topic';
+                        return 'Please tell us what you want to learn';
                       }
                       return null;
                     },
                     enabled: !_isLoading,
+                    style: theme.textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 32),
+
+                  // How much time do you have?
+                  _buildSectionHeader(
+                    icon: Icons.schedule,
+                    title: 'How much time do you have?',
+                    subtitle:
+                        'We\'ll break it down into manageable daily lessons',
+                    theme: theme,
+                    colorScheme: colorScheme,
                   ),
                   const SizedBox(height: 16),
+
+                  // Timeline suggestions
+                  _buildTimelineSuggestions(colorScheme, theme),
+                  const SizedBox(height: 16),
+
                   TextFormField(
                     controller: _timelineController,
-                    decoration: const InputDecoration(
-                      labelText: 'Timeline',
-                      hintText: 'e.g. 2 weeks, 3 months',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: 'Your Learning Timeline',
+                      hintText: 'e.g., "2 weeks", "1 month", "3 months"',
+                      prefixIcon: Icon(
+                        Icons.calendar_today,
+                        color: colorScheme.primary,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      filled: true,
+                      fillColor: colorScheme.surface,
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter a timeline';
+                        return 'Please let us know your timeline';
                       }
                       return null;
                     },
                     enabled: !_isLoading,
+                    style: theme.textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 32),
+
+                  // What's your experience level?
+                  _buildSectionHeader(
+                    icon: Icons.trending_up,
+                    title: 'What\'s your experience level?',
+                    subtitle: 'This helps us adjust the content difficulty',
+                    theme: theme,
+                    colorScheme: colorScheme,
                   ),
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: _difficulty,
-                    decoration: const InputDecoration(
-                      labelText: 'Difficulty',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'easy', child: Text('Easy')),
-                      DropdownMenuItem(value: 'medium', child: Text('Medium')),
-                      DropdownMenuItem(value: 'hard', child: Text('Hard')),
-                    ],
-                    onChanged:
-                        _isLoading
-                            ? null
-                            : (value) {
-                              if (value != null) {
-                                setState(() {
-                                  _difficulty = value;
-                                });
-                              }
-                            },
+
+                  _buildDifficultySelector(colorScheme, theme),
+                  const SizedBox(height: 32),
+
+                  // Any special requirements?
+                  _buildSectionHeader(
+                    icon: Icons.tune,
+                    title: 'Any special requirements?',
+                    subtitle:
+                        'Optional: Tell us about your specific needs or preferences',
+                    theme: theme,
+                    colorScheme: colorScheme,
                   ),
                   const SizedBox(height: 16),
+
                   TextFormField(
                     controller: _customInstructionsController,
-                    decoration: const InputDecoration(
-                      labelText: 'Custom Instructions (Optional)',
-                      hintText: 'Any specific requirements or preferences',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: 'Special Instructions (Optional)',
+                      hintText:
+                          'e.g., "Focus on practical examples", "Include coding exercises", "Beginner-friendly explanations"',
+                      prefixIcon: Icon(
+                        Icons.edit_note,
+                        color: colorScheme.primary,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      filled: true,
+                      fillColor: colorScheme.surface,
                     ),
                     maxLines: 3,
                     enabled: !_isLoading,
+                    style: theme.textTheme.bodyLarge,
                   ),
-                  const SizedBox(height: 32),
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _generateCoursePlan,
-                    style: ElevatedButton.styleFrom(
-                      foregroundColor: colorScheme.onPrimary,
-                      backgroundColor: colorScheme.primary,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                  const SizedBox(height: 40),
+
+                  // Generate button
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: colorScheme.primary.withOpacity(0.2),
+                      ),
                     ),
-                    child: const Text('Generate Course Plan'),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.rocket_launch,
+                          size: 32,
+                          color: colorScheme.primary,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Ready to start your learning journey?',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _isLoading ? null : _generateCoursePlan,
+                            icon: const Icon(Icons.auto_awesome),
+                            label: const Text(
+                              'Generate My Course',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: colorScheme.primary,
+                              foregroundColor: colorScheme.onPrimary,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
@@ -265,31 +412,61 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
               child: Center(
                 child: Card(
                   margin: const EdgeInsets.all(16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: Padding(
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(32),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const CircularProgressIndicator(),
-                        const SizedBox(height: 24),
-                        Text(
-                          AppConstants.generatingCourseMessage,
-                          style: theme.textTheme.titleLarge,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          AppConstants.generatingCourseSubMessage,
-                          style: theme.textTheme.bodyMedium,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Elapsed time: $_elapsedTime',
-                          style: theme.textTheme.bodyMedium,
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(50),
+                          ),
+                          child: CircularProgressIndicator(
+                            color: colorScheme.primary,
+                            strokeWidth: 3,
+                          ),
                         ),
                         const SizedBox(height: 24),
-                        TextButton(
+                        Text(
+                          'Creating Your Course ✨',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Our AI is crafting personalized lessons just for you. This usually takes 1-2 minutes.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurface.withOpacity(0.8),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.surface,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            'Time elapsed: $_elapsedTime',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        TextButton.icon(
                           onPressed: () {
                             Logger.i(
                               _tag,
@@ -299,8 +476,10 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                               _isLoading = false;
                             });
                           },
-                          child: Text(
-                            AppConstants.generatingCourseCancelMessage,
+                          icon: const Icon(Icons.close),
+                          label: const Text('Cancel'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: colorScheme.error,
                           ),
                         ),
                       ],
@@ -311,6 +490,207 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSectionHeader({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required ThemeData theme,
+    required ColorScheme colorScheme,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 20, color: colorScheme.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurface.withOpacity(0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTopicSuggestions(ColorScheme colorScheme, ThemeData theme) {
+    final suggestions = [
+      'Python Programming',
+      'Digital Marketing',
+      'Photography',
+      'Web Development',
+      'Data Science',
+      'UI/UX Design',
+    ];
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children:
+          suggestions.map((suggestion) {
+            return ActionChip(
+              label: Text(suggestion),
+              onPressed:
+                  _isLoading
+                      ? null
+                      : () {
+                        _topicController.text = suggestion;
+                      },
+              backgroundColor: colorScheme.surface,
+              side: BorderSide(color: colorScheme.primary.withOpacity(0.3)),
+              labelStyle: TextStyle(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.w500,
+              ),
+            );
+          }).toList(),
+    );
+  }
+
+  Widget _buildTimelineSuggestions(ColorScheme colorScheme, ThemeData theme) {
+    final suggestions = ['1 week', '2 weeks', '1 month', '3 months'];
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children:
+          suggestions.map((suggestion) {
+            return ActionChip(
+              label: Text(suggestion),
+              onPressed:
+                  _isLoading
+                      ? null
+                      : () {
+                        _timelineController.text = suggestion;
+                      },
+              backgroundColor: colorScheme.surface,
+              side: BorderSide(color: colorScheme.primary.withOpacity(0.3)),
+              labelStyle: TextStyle(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.w500,
+              ),
+            );
+          }).toList(),
+    );
+  }
+
+  Widget _buildDifficultySelector(ColorScheme colorScheme, ThemeData theme) {
+    final difficulties = [
+      {
+        'value': 'easy',
+        'title': 'Beginner',
+        'description': 'New to this topic',
+        'icon': Icons.school,
+      },
+      {
+        'value': 'medium',
+        'title': 'Intermediate',
+        'description': 'Some experience',
+        'icon': Icons.trending_up,
+      },
+      {
+        'value': 'hard',
+        'title': 'Advanced',
+        'description': 'Ready for a challenge',
+        'icon': Icons.star,
+      },
+    ];
+
+    return Column(
+      children:
+          difficulties.map((diff) {
+            final isSelected = _difficulty == diff['value'];
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: InkWell(
+                onTap:
+                    _isLoading
+                        ? null
+                        : () {
+                          setState(() {
+                            _difficulty = diff['value'] as String;
+                          });
+                        },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color:
+                        isSelected
+                            ? colorScheme.primary.withOpacity(0.1)
+                            : colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color:
+                          isSelected
+                              ? colorScheme.primary
+                              : colorScheme.outline.withOpacity(0.3),
+                      width: isSelected ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        diff['icon'] as IconData,
+                        color:
+                            isSelected
+                                ? colorScheme.primary
+                                : colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              diff['title'] as String,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color:
+                                    isSelected
+                                        ? colorScheme.primary
+                                        : colorScheme.onSurface,
+                              ),
+                            ),
+                            Text(
+                              diff['description'] as String,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurface.withOpacity(0.7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (isSelected)
+                        Icon(Icons.check_circle, color: colorScheme.primary),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
     );
   }
 }
