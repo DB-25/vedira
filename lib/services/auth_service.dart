@@ -1,8 +1,9 @@
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
+import 'secure_storage_service.dart';
 
 // Authentication event types
 enum AuthEventType { loginRequired, tokenRefreshed, loggedOut }
@@ -425,6 +426,15 @@ class AuthService {
     await _prefs!.remove(_refreshTokenKey);
     await _prefs!.remove(_idTokenKey);
     await _prefs!.remove(_tokenExpiryKey);
+
+    // Also clear saved credentials from secure storage
+    try {
+      final secureStorage = SecureStorageService();
+      await secureStorage.clearCredentials();
+      Logger.i(_tag, 'Saved credentials cleared on logout');
+    } catch (e) {
+      Logger.e(_tag, 'Error clearing saved credentials on logout', error: e);
+    }
 
     Logger.i(_tag, 'User logged out successfully');
 

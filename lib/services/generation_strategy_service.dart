@@ -17,18 +17,55 @@ class GenerationStrategyService {
   final Map<String, StreamController<GenerationProgress>> _progressControllers =
       {};
 
+  // Track which generations should continue in background
+  final Set<String> _backgroundGenerations = {};
+
+  // Callbacks for background generation completion
+  final Map<String, VoidCallback> _backgroundCompletionCallbacks = {};
+
   // Suggested chapters to generate
   final Set<String> _suggestedChapters = {};
 
-  // Cleanup
-  void dispose() {
-    for (var subscription in _activeGenerations.values) {
-      subscription.cancel();
+  // Periodic background status checker
+  Timer? _backgroundPollingTimer;
+
+  // Move generation to background (continue polling but no UI updates)
+  void moveToBackground(
+    String courseId,
+    String chapterId, {
+    VoidCallback? onCompleted,
+  }) {
+    final key = '$courseId-$chapterId';
+    Logger.i(_tag, 'Moving generation to background: $key');
+    _backgroundGenerations.add(key);
+
+    // Store completion callback if provided
+    if (onCompleted != null) {
+      _backgroundCompletionCallbacks[key] = onCompleted;
     }
-    for (var controller in _progressControllers.values) {
-      controller.close();
-    }
-    _generationService.dispose();
+
+    // Close the progress controller to stop UI updates, but keep the underlying generation running
+    _progressControllers[key]?.close();
+    _progressControllers.remove(key);
+
+    Logger.i(
+      _tag,
+      'Generation moved to background - UI updates stopped for: $key',
+    );
+  }
+
+  // Check if a generation is running in background
+  bool isRunningInBackground(String courseId, String chapterId) {
+    final key = '$courseId-$chapterId';
+    return _backgroundGenerations.contains(key);
+  }
+
+  // Get list of all background generations for a course
+  List<String> getBackgroundGenerations(String courseId) {
+    return _backgroundGenerations
+        .where((key) => key.startsWith('$courseId-'))
+        .map((key) => key.substring('$courseId-'.length))
+        .toList();
   }
 
   // Check what user should study next and suggest proactive generation
@@ -200,6 +237,9 @@ class GenerationStrategyService {
     required BuildContext context,
     required String chapterName,
     required Stream<GenerationProgress> progressStream,
+    required String courseId,
+    required String chapterId,
+    VoidCallback? onRunInBackground,
   }) {
     showDialog(
       context: context,
@@ -208,6 +248,15 @@ class GenerationStrategyService {
           (context) => GenerationProgressDialog(
             chapterName: chapterName,
             progressStream: progressStream,
+            courseId: courseId,
+            chapterId: chapterId,
+            onRunInBackground: () {
+              // Call the UI callback immediately when user clicks "Run in Background"
+              onRunInBackground?.call();
+
+              // Then move generation to background (without completion callback since we already called it)
+              moveToBackground(courseId, chapterId);
+            },
           ),
     );
   }
@@ -247,13 +296,15 @@ class GenerationStrategyService {
 
     try {
       // Initial progress
-      controller.add(
-        GenerationProgress(
-          phase: GenerationPhase.starting,
-          message: 'Starting content generation...',
-          progress: 0.0,
-        ),
-      );
+      if (!controller.isClosed) {
+        controller.add(
+          GenerationProgress(
+            phase: GenerationPhase.starting,
+            message: 'Starting content generation...',
+            progress: 0.0,
+          ),
+        );
+      }
 
       // Start the actual generation
       final generationStream = _generationService.generateChapter(
@@ -263,60 +314,92 @@ class GenerationStrategyService {
 
       final subscription = generationStream.listen(
         (result) {
+          // Only send updates if not running in background and controller is open
+          final isBackground = _backgroundGenerations.contains(key);
+          final shouldSendUpdate = !isBackground && !controller.isClosed;
+
           switch (result.status) {
             case ChapterGenerationStatus.completed:
-              controller.add(
-                GenerationProgress(
-                  phase: GenerationPhase.completed,
-                  message: 'Content ready! 🎉',
-                  progress: 1.0,
-                ),
+              Logger.i(
+                _tag,
+                'Generation completed for $key (background: $isBackground)',
               );
+              if (shouldSendUpdate) {
+                controller.add(
+                  GenerationProgress(
+                    phase: GenerationPhase.completed,
+                    message: 'Content ready! 🎉',
+                    progress: 1.0,
+                  ),
+                );
+              }
+
+              // Call background completion callback if this was a background generation
+              if (isBackground &&
+                  _backgroundCompletionCallbacks.containsKey(key)) {
+                Logger.i(
+                  _tag,
+                  'Calling background completion callback for $key',
+                );
+                _backgroundCompletionCallbacks[key]?.call();
+              }
+
               _cleanup(key);
               break;
 
             case ChapterGenerationStatus.running:
-              controller.add(
-                GenerationProgress(
-                  phase: GenerationPhase.generating,
-                  message: _getProgressMessage(result),
-                  progress: _estimateProgress(result),
-                ),
-              );
+              if (shouldSendUpdate) {
+                controller.add(
+                  GenerationProgress(
+                    phase: GenerationPhase.generating,
+                    message: _getProgressMessage(result),
+                    progress: _estimateProgress(result),
+                  ),
+                );
+              }
               break;
 
             case ChapterGenerationStatus.failed:
-              controller.add(
-                GenerationProgress(
-                  phase: GenerationPhase.failed,
-                  message: 'Generation failed. Please try again.',
-                  progress: 0.0,
-                  error: result.error,
-                ),
-              );
+              Logger.e(_tag, 'Generation failed for $key: ${result.error}');
+              if (shouldSendUpdate) {
+                controller.add(
+                  GenerationProgress(
+                    phase: GenerationPhase.failed,
+                    message: 'Generation failed. Please try again.',
+                    progress: 0.0,
+                    error: result.error,
+                  ),
+                );
+              }
               _cleanup(key);
               break;
 
             case ChapterGenerationStatus.timeout:
-              controller.add(
-                GenerationProgress(
-                  phase: GenerationPhase.timeout,
-                  message: 'Generation is taking longer than expected.',
-                  progress: 0.5,
-                ),
-              );
+              Logger.w(_tag, 'Generation timed out for $key');
+              if (shouldSendUpdate) {
+                controller.add(
+                  GenerationProgress(
+                    phase: GenerationPhase.timeout,
+                    message: 'Generation is taking longer than expected.',
+                    progress: 0.5,
+                  ),
+                );
+              }
               break;
           }
         },
         onError: (error) {
-          controller.add(
-            GenerationProgress(
-              phase: GenerationPhase.failed,
-              message: 'An error occurred during generation.',
-              progress: 0.0,
-              error: error.toString(),
-            ),
-          );
+          Logger.e(_tag, 'Generation error for $key', error: error);
+          if (!controller.isClosed) {
+            controller.add(
+              GenerationProgress(
+                phase: GenerationPhase.failed,
+                message: 'An error occurred during generation.',
+                progress: 0.0,
+                error: error.toString(),
+              ),
+            );
+          }
           _cleanup(key);
         },
       );
@@ -324,21 +407,26 @@ class GenerationStrategyService {
       _activeGenerations[key] = subscription;
     } catch (e) {
       Logger.e(_tag, 'Error starting generation process', error: e);
-      controller.add(
-        GenerationProgress(
-          phase: GenerationPhase.failed,
-          message: 'Failed to start generation.',
-          progress: 0.0,
-          error: e.toString(),
-        ),
-      );
+      if (!controller.isClosed) {
+        controller.add(
+          GenerationProgress(
+            phase: GenerationPhase.failed,
+            message: 'Failed to start generation.',
+            progress: 0.0,
+            error: e.toString(),
+          ),
+        );
+      }
       _cleanup(key);
     }
   }
 
   void _cleanup(String key) {
+    Logger.d(_tag, 'Cleaning up generation: $key');
     _activeGenerations[key]?.cancel();
     _activeGenerations.remove(key);
+    _backgroundGenerations.remove(key);
+    _backgroundCompletionCallbacks.remove(key);
 
     // Close controller after a delay to allow final message to be received
     Timer(const Duration(seconds: 2), () {
@@ -355,6 +443,77 @@ class GenerationStrategyService {
   double _estimateProgress(ChapterGenerationResult result) {
     // TODO: Better progress estimation based on result details
     return 0.5; // Assume halfway through
+  }
+
+  void startBackgroundPolling() {
+    if (_backgroundPollingTimer?.isActive == true) return;
+
+    Logger.i(_tag, 'Starting background polling for generations');
+    _backgroundPollingTimer = Timer.periodic(
+      const Duration(seconds: 30), // Check every 30 seconds
+      (timer) async {
+        if (_backgroundGenerations.isEmpty) {
+          Logger.d(_tag, 'No background generations, stopping polling');
+          timer.cancel();
+          return;
+        }
+
+        Logger.d(
+          _tag,
+          'Checking ${_backgroundGenerations.length} background generations',
+        );
+
+        // Check each background generation
+        final completedGenerations = <String>[];
+        for (final key in _backgroundGenerations.toList()) {
+          try {
+            final parts = key.split('-');
+            if (parts.length >= 2) {
+              final courseId = parts[0];
+              final chapterId = parts.sublist(1).join('-');
+
+              // This would need to be implemented to check individual chapter status
+              // For now, we'll rely on the existing stream-based approach
+            }
+          } catch (e) {
+            Logger.e(
+              _tag,
+              'Error checking background generation: $key',
+              error: e,
+            );
+            completedGenerations.add(key);
+          }
+        }
+
+        // Clean up completed generations
+        for (final key in completedGenerations) {
+          _backgroundGenerations.remove(key);
+        }
+      },
+    );
+  }
+
+  void stopBackgroundPolling() {
+    _backgroundPollingTimer?.cancel();
+    _backgroundPollingTimer = null;
+    Logger.i(_tag, 'Stopped background polling');
+  }
+
+  void dispose() {
+    stopBackgroundPolling();
+    Logger.i(
+      _tag,
+      'Disposing GenerationStrategyService - cancelling all active generations',
+    );
+    for (var subscription in _activeGenerations.values) {
+      subscription.cancel();
+    }
+    for (var controller in _progressControllers.values) {
+      controller.close();
+    }
+    _backgroundGenerations.clear();
+    _backgroundCompletionCallbacks.clear();
+    _generationService.dispose();
   }
 }
 
@@ -403,16 +562,28 @@ class GenerationProgress {
   });
 }
 
-class GenerationProgressDialog extends StatelessWidget {
+class GenerationProgressDialog extends StatefulWidget {
   final String chapterName;
   final Stream<GenerationProgress> progressStream;
+  final VoidCallback? onRunInBackground;
+  final String courseId;
+  final String chapterId;
 
   const GenerationProgressDialog({
     super.key,
     required this.chapterName,
     required this.progressStream,
+    required this.courseId,
+    required this.chapterId,
+    this.onRunInBackground,
   });
 
+  @override
+  State<GenerationProgressDialog> createState() =>
+      _GenerationProgressDialogState();
+}
+
+class _GenerationProgressDialogState extends State<GenerationProgressDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -422,7 +593,7 @@ class GenerationProgressDialog extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: StreamBuilder<GenerationProgress>(
-          stream: progressStream,
+          stream: widget.progressStream,
           builder: (context, snapshot) {
             final progress = snapshot.data;
 
@@ -431,7 +602,7 @@ class GenerationProgressDialog extends StatelessWidget {
               children: [
                 // Header
                 Text(
-                  'Preparing "$chapterName"',
+                  'Preparing "${widget.chapterName}"',
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -518,7 +689,12 @@ class GenerationProgressDialog extends StatelessWidget {
                       ),
                     ] else ...[
                       TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () {
+                          // Get the generation service from context or pass it through
+                          // For now, we'll use a static approach
+                          Navigator.of(context).pop();
+                          widget.onRunInBackground?.call();
+                        },
                         child: const Text('Run in Background'),
                       ),
                     ],

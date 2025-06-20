@@ -7,6 +7,7 @@ import '../models/user_progress.dart';
 import '../services/api_service.dart';
 import '../services/progress_service.dart';
 import '../services/generation_strategy_service.dart';
+import '../services/chapter_generation_service.dart';
 import '../utils/logger.dart';
 import '../utils/constants.dart';
 import '../widgets/study_chapter_card.dart';
@@ -29,11 +30,14 @@ class CourseDetailsScreen extends StatefulWidget {
   State<CourseDetailsScreen> createState() => _CourseDetailsScreenState();
 }
 
-class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
+class _CourseDetailsScreenState extends State<CourseDetailsScreen>
+    with WidgetsBindingObserver {
   final ApiService _apiService = ApiService();
   final ProgressService _progressService = ProgressService();
   final GenerationStrategyService _generationService =
       GenerationStrategyService();
+  final ChapterGenerationService _chapterGenerationService =
+      ChapterGenerationService();
 
   late Future<Course> _courseFuture;
   UserProgress? _userProgress;
@@ -50,19 +54,52 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
     // Added additional validation and logging for courseId
     if (widget.courseId.isEmpty) {
       Logger.e(_tag, 'Empty courseId provided to CourseDetailsScreen');
     }
     Logger.i(_tag, 'Screen initialized for course ID: "${widget.courseId}"');
+
+    // Resume polling for this course if there are active generations
+    _chapterGenerationService.resumeCoursePolling(widget.courseId);
+
     _loadCourse();
     _loadUserProgress();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+
+    // Stop polling when user navigates away from this screen
+    _chapterGenerationService.stopCoursePolling(widget.courseId);
+
     _generationService.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // Handle app lifecycle changes
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        // Stop polling when app goes to background
+        _chapterGenerationService.stopCoursePolling(widget.courseId);
+        break;
+      case AppLifecycleState.resumed:
+        // Resume polling when app comes to foreground
+        _chapterGenerationService.resumeCoursePolling(widget.courseId);
+        break;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+        // No action needed for inactive or hidden states
+        break;
+    }
   }
 
   Future<void> _loadCourse() async {
@@ -180,6 +217,29 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
       context: context,
       chapterName: chapterTitle,
       progressStream: progressStream,
+      courseId: widget.courseId,
+      chapterId: chapterId,
+      onRunInBackground: () {
+        // Trigger immediate UI update to show background generation
+        Logger.i(_tag, 'User clicked "Run in Background" - updating UI');
+
+        // Force refresh of study recommendations to show background generations
+        _forceRefreshStudyRecommendation();
+
+        // Force immediate setState to refresh the study recommendation card
+        if (mounted) {
+          setState(() {
+            // This will trigger a rebuild and show the background generation indicator
+          });
+        }
+
+        // Also trigger a delayed refresh to ensure data is up to date
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            _handleRefresh();
+          }
+        });
+      },
     );
 
     // Listen for completion to refresh the course data
@@ -188,6 +248,40 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
         _handleRefresh();
       }
     });
+  }
+
+  Future<void> _forceRefreshStudyRecommendation() async {
+    try {
+      final course = await _courseFuture;
+      final chapterIds = course.sections?.map((s) => s.id).toList() ?? ['main'];
+      final recommendation = await _generationService.getStudyRecommendation(
+        courseId: widget.courseId,
+        allChapterIds: chapterIds,
+        chaptersStatus: course.chaptersStatus,
+      );
+
+      if (mounted) {
+        setState(() {
+          _studyRecommendation = recommendation;
+        });
+      }
+
+      Logger.i(
+        _tag,
+        'Study recommendation force refreshed',
+        data: {
+          'hasContentToStudy': recommendation.hasContentToStudy,
+          'hasSuggestions': recommendation.hasSuggestions,
+          'nextToGenerate': recommendation.nextToGenerate,
+          'backgroundGenerations':
+              _generationService
+                  .getBackgroundGenerations(widget.courseId)
+                  .length,
+        },
+      );
+    } catch (e) {
+      Logger.e(_tag, 'Error force refreshing study recommendation', error: e);
+    }
   }
 
   Future<void> _handleRefresh() async {
@@ -199,11 +293,34 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
     await _loadCourse();
     await _loadUserProgress();
 
+    // Check if course data was updated after refresh
+    try {
+      final course = await _courseFuture;
+      Logger.i(
+        _tag,
+        'Course refresh completed - checking chapter status:',
+        data: {
+          'courseId': course.courseID,
+          'sectionsCount': course.sections?.length ?? 0,
+          'chaptersStatus': course.chaptersStatus.map(
+            (key, value) => MapEntry(key, {
+              'lessonsStatus': value.lessonsStatus,
+              'mcqsStatus': value.mcqsStatus,
+              'hasContent': value.hasContent,
+              'isGenerating': value.isGenerating,
+            }),
+          ),
+        },
+      );
+    } catch (e) {
+      Logger.e(_tag, 'Error checking course data after refresh', error: e);
+    }
+
     setState(() {
       _isRefreshing = false;
     });
 
-    Logger.i(_tag, 'Course refresh completed');
+    Logger.i(_tag, 'Course refresh setState completed');
   }
 
   Future<void> _initializeProgress(Course course) async {
@@ -1028,7 +1145,10 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
       children: [
         _buildCourseHeader(context, course, theme),
         const SizedBox(height: 16),
-        if (_studyRecommendation != null) ...[
+        if (_studyRecommendation != null ||
+            _generationService
+                .getBackgroundGenerations(widget.courseId)
+                .isNotEmpty) ...[
           _buildStudyRecommendationCard(theme),
           const SizedBox(height: 16),
         ],
@@ -1458,11 +1578,38 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
   }
 
   Widget _buildStudyRecommendationCard(ThemeData theme) {
-    final recommendation = _studyRecommendation!;
+    final recommendation = _studyRecommendation;
 
-    if (!recommendation.hasContentToStudy && !recommendation.hasSuggestions) {
+    // Check for background generations
+    final backgroundGenerations = _generationService.getBackgroundGenerations(
+      widget.courseId,
+    );
+
+    // Show card if there's content to study, suggestions, OR background generations
+    if (recommendation != null &&
+        (!recommendation.hasContentToStudy && !recommendation.hasSuggestions) &&
+        backgroundGenerations.isEmpty) {
       return const SizedBox.shrink();
     }
+
+    // If no recommendation but have background generations, still show the card
+    if (recommendation == null && backgroundGenerations.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // Add logging to debug background generations
+    Logger.d(
+      _tag,
+      'Building study recommendation card',
+      data: {
+        'hasRecommendation': recommendation != null,
+        'hasContentToStudy': recommendation?.hasContentToStudy ?? false,
+        'hasSuggestions': recommendation?.hasSuggestions ?? false,
+        'isGenerating': recommendation?.isGenerating ?? false,
+        'backgroundGenerationsCount': backgroundGenerations.length,
+        'backgroundGenerations': backgroundGenerations,
+      },
+    );
 
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1480,7 +1627,9 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Study Recommendation',
+                  backgroundGenerations.isNotEmpty && recommendation == null
+                      ? 'Content Generation'
+                      : 'Study Recommendation',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -1488,14 +1637,14 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            if (recommendation.currentToStudy != null) ...[
+            if (recommendation?.currentToStudy != null) ...[
               Text(
                 '📚 Continue studying your current chapter',
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 8),
             ],
-            if (recommendation.isGenerating) ...[
+            if (recommendation?.isGenerating == true) ...[
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
@@ -1518,6 +1667,40 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                     Text(
                       'Content is being prepared in the background...',
                       style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            // Show background generations
+            if (backgroundGenerations.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.blue.shade700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${backgroundGenerations.length} chapter${backgroundGenerations.length > 1 ? 's' : ''} generating in background',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
                     ),
                   ],
                 ),

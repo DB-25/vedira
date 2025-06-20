@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../models/course.dart';
 import '../screens/create_course_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/privacy_policy_screen.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
-import '../utils/theme_manager.dart';
 import '../utils/logger.dart';
+import '../utils/theme_manager.dart';
 import '../widgets/course_card.dart';
 
 class HomeScreen extends StatefulWidget {

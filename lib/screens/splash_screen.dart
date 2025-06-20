@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/course.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/secure_storage_service.dart';
 import '../utils/theme_manager.dart';
 import '../utils/logger.dart';
 import 'home_screen.dart';
@@ -21,7 +22,9 @@ class _SplashScreenState extends State<SplashScreen> {
   bool _initialized = false;
   final ApiService _apiService = ApiService();
   final AuthService _authService = AuthService.instance;
+  final SecureStorageService _secureStorage = SecureStorageService();
   late Future<List<Course>> _coursesFuture;
+  String _statusMessage = 'Initializing...';
 
   @override
   void initState() {
@@ -34,6 +37,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final themeManager = Provider.of<ThemeManager>(context, listen: false);
 
     Logger.i(_tag, 'Waiting for theme to initialize');
+    _updateStatus('Loading theme...');
 
     // Wait for theme initialization
     bool isThemeReady = false;
@@ -62,21 +66,67 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // Check authentication status
     Logger.i(_tag, 'Checking authentication status');
-    final isLoggedIn = await _authService.isLoggedIn();
-    Logger.i(_tag, 'User logged in: $isLoggedIn');
+    _updateStatus('Checking authentication...');
+
+    bool isLoggedIn = await _authService.isLoggedIn();
+    Logger.i(_tag, 'Current auth status: $isLoggedIn');
+
+    // If not logged in, try auto-login with saved credentials
+    if (!isLoggedIn) {
+      Logger.i(_tag, 'Not logged in, checking for saved credentials');
+      _updateStatus('Checking saved credentials...');
+
+      try {
+        final savedCredentials = await _secureStorage.getSavedCredentials();
+
+        if (savedCredentials != null) {
+          Logger.i(_tag, 'Found saved credentials, attempting auto-login');
+          _updateStatus('Signing in automatically...');
+
+          final result = await _authService.signIn(
+            savedCredentials.email,
+            savedCredentials.password,
+          );
+
+          if (result['success']) {
+            Logger.i(_tag, 'Auto-login successful');
+            isLoggedIn = true;
+            _updateStatus('Login successful!');
+          } else {
+            Logger.w(_tag, 'Auto-login failed: ${result['message']}');
+            _updateStatus('Auto-login failed, please sign in manually');
+            // Clear invalid credentials
+            await _secureStorage.clearCredentials();
+            // Wait a moment to show the message
+            await Future.delayed(const Duration(seconds: 1));
+          }
+        } else {
+          Logger.i(_tag, 'No saved credentials found');
+        }
+      } catch (e) {
+        Logger.e(_tag, 'Error during auto-login attempt', error: e);
+        _updateStatus('Auto-login failed');
+        // Clear potentially corrupted credentials
+        await _secureStorage.clearCredentials();
+        await Future.delayed(const Duration(seconds: 1));
+      }
+    }
 
     if (isLoggedIn) {
       // User is logged in, preload courses
       Logger.i(_tag, 'User is authenticated, preloading courses');
+      _updateStatus('Loading courses...');
       _coursesFuture = _apiService.getCourseList();
 
       try {
         final courses = await _coursesFuture;
         Logger.i(_tag, 'Preloaded ${courses.length} courses successfully');
+        _updateStatus('Ready!');
       } catch (e) {
         Logger.e(_tag, 'Error preloading courses', error: e);
         // Continue with empty courses list
         _coursesFuture = Future.value([]);
+        _updateStatus('Ready!');
       }
     }
 
@@ -86,6 +136,14 @@ class _SplashScreenState extends State<SplashScreen> {
     setState(() {
       _initialized = true;
     });
+  }
+
+  void _updateStatus(String message) {
+    if (mounted) {
+      setState(() {
+        _statusMessage = message;
+      });
+    }
   }
 
   void _navigateToNextScreen() async {
@@ -146,6 +204,16 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
             const SizedBox(height: 48),
             const CircularProgressIndicator(),
+            const SizedBox(height: 24),
+            // Status message
+            Text(
+              _statusMessage,
+              style: TextStyle(
+                fontSize: 16,
+                color: colorScheme.onSurface.withOpacity(0.7),
+              ),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),

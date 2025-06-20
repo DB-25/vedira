@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/secure_storage_service.dart';
 import '../utils/constants.dart';
 import '../utils/logger.dart';
 import 'verification_screen.dart';
@@ -20,13 +21,22 @@ class _LoginScreenState extends State<LoginScreen> {
   final _confirmPasswordController = TextEditingController();
   final _phoneController = TextEditingController();
   final AuthService _authService = AuthService.instance;
+  final SecureStorageService _secureStorage = SecureStorageService();
 
   bool _isLoading = false;
   bool _isSignUpMode = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _rememberMe = false;
+  bool _isLoadingCredentials = true;
 
   static const String _tag = 'LoginScreen';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
 
   @override
   void dispose() {
@@ -35,6 +45,38 @@ class _LoginScreenState extends State<LoginScreen> {
     _confirmPasswordController.dispose();
     _phoneController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    try {
+      final savedCredentials = await _secureStorage.getSavedCredentials();
+      if (savedCredentials != null && mounted) {
+        setState(() {
+          _emailController.text = savedCredentials.email;
+          _passwordController.text = savedCredentials.password;
+          _rememberMe = savedCredentials.rememberMe;
+        });
+        // Safe email logging - handle edge cases
+        final emailDisplay =
+            savedCredentials.email.contains('@')
+                ? '${savedCredentials.email.substring(0, savedCredentials.email.indexOf('@'))}***'
+                : 'user***';
+        Logger.i(_tag, 'Loaded saved credentials for: $emailDisplay');
+      }
+    } catch (e) {
+      Logger.e(
+        _tag,
+        'Error loading saved credentials, secure storage may not be available',
+        error: e,
+      );
+      // Continue without saved credentials if secure storage fails
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingCredentials = false;
+        });
+      }
+    }
   }
 
   String? _validateEmail(String? value) {
@@ -142,6 +184,36 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (result['success']) {
+        // Save credentials if remember me is checked
+        if (_rememberMe) {
+          try {
+            await _secureStorage.saveCredentials(
+              email: _emailController.text.trim(),
+              password: _passwordController.text,
+              rememberMe: _rememberMe,
+            );
+          } catch (e) {
+            Logger.e(
+              _tag,
+              'Failed to save credentials, but login successful',
+              error: e,
+            );
+            // Don't block login if secure storage fails
+            _showSnackBar(
+              'Login successful, but failed to save credentials',
+              isError: false,
+            );
+          }
+        } else {
+          // Clear any existing saved credentials if remember me is unchecked
+          try {
+            await _secureStorage.clearCredentials();
+          } catch (e) {
+            Logger.e(_tag, 'Failed to clear credentials', error: e);
+            // Don't block login if secure storage fails
+          }
+        }
+
         Logger.i(_tag, 'Signin successful, navigating to home');
         if (mounted) {
           Navigator.pushReplacement(
@@ -159,10 +231,36 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void _toggleMode() {
+    setState(() {
+      _isSignUpMode = !_isSignUpMode;
+      _formKey.currentState?.reset();
+      if (_isSignUpMode) {
+        // Clear form when switching to sign up mode
+        _emailController.clear();
+        _passwordController.clear();
+        _confirmPasswordController.clear();
+        _phoneController.clear();
+        _rememberMe = false;
+      } else {
+        // Reload saved credentials when switching back to sign in mode
+        _loadSavedCredentials();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+
+    // Show loading indicator while credentials are being loaded
+    if (_isLoadingCredentials) {
+      return Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -217,12 +315,42 @@ class _LoginScreenState extends State<LoginScreen> {
                     validator: _validateEmail,
                     decoration: InputDecoration(
                       labelText: 'Email',
+                      hintText: 'Enter your email address',
                       prefixIcon: const Icon(Icons.email_outlined),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: colorScheme.outline),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: colorScheme.outline.withOpacity(0.5),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: colorScheme.primary,
+                          width: 2,
+                        ),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: colorScheme.error),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: colorScheme.error,
+                          width: 2,
+                        ),
                       ),
                       filled: true,
                       fillColor: colorScheme.surface,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
                     ),
                   ),
                   const SizedBox(height: AppConstants.defaultPadding),
@@ -240,9 +368,38 @@ class _LoginScreenState extends State<LoginScreen> {
                         prefixIcon: const Icon(Icons.phone_outlined),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: colorScheme.outline),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: colorScheme.outline.withOpacity(0.5),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: colorScheme.primary,
+                            width: 2,
+                          ),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: colorScheme.error),
+                        ),
+                        focusedErrorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: colorScheme.error,
+                            width: 2,
+                          ),
                         ),
                         filled: true,
                         fillColor: colorScheme.surface,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
                       ),
                     ),
                     const SizedBox(height: AppConstants.defaultPadding),
@@ -259,6 +416,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     validator: _validatePassword,
                     decoration: InputDecoration(
                       labelText: 'Password',
+                      hintText: 'Enter your password',
                       prefixIcon: const Icon(Icons.lock_outlined),
                       suffixIcon: IconButton(
                         icon: Icon(
@@ -272,9 +430,38 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: colorScheme.outline),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: colorScheme.outline.withOpacity(0.5),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: colorScheme.primary,
+                          width: 2,
+                        ),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: colorScheme.error),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: colorScheme.error,
+                          width: 2,
+                        ),
                       ),
                       filled: true,
                       fillColor: colorScheme.surface,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
                     ),
                   ),
 
@@ -288,6 +475,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       validator: _validateConfirmPassword,
                       decoration: InputDecoration(
                         labelText: 'Confirm Password',
+                        hintText: 'Re-enter your password',
                         prefixIcon: const Icon(Icons.lock_outlined),
                         suffixIcon: IconButton(
                           icon: Icon(
@@ -305,9 +493,110 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: colorScheme.outline),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: colorScheme.outline.withOpacity(0.5),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: colorScheme.primary,
+                            width: 2,
+                          ),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: colorScheme.error),
+                        ),
+                        focusedErrorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: colorScheme.error,
+                            width: 2,
+                          ),
                         ),
                         filled: true,
                         fillColor: colorScheme.surface,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: AppConstants.largePadding),
+
+                  // Remember Me checkbox (only for sign in)
+                  if (!_isSignUpMode) ...[
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap:
+                              _isLoading
+                                  ? null
+                                  : () {
+                                    setState(() {
+                                      _rememberMe = !_rememberMe;
+                                    });
+                                  },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 12,
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 24,
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color:
+                                          _rememberMe
+                                              ? colorScheme.primary
+                                              : colorScheme.outline.withOpacity(
+                                                0.5,
+                                              ),
+                                      width: 2,
+                                    ),
+                                    color:
+                                        _rememberMe
+                                            ? colorScheme.primary
+                                            : Colors.transparent,
+                                  ),
+                                  child:
+                                      _rememberMe
+                                          ? Icon(
+                                            Icons.check,
+                                            size: 16,
+                                            color: colorScheme.onPrimary,
+                                          )
+                                          : null,
+                                ),
+                                const SizedBox(width: 20),
+                                Expanded(
+                                  child: Text(
+                                    'Remember me',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: colorScheme.onSurface,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -316,7 +605,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Submit button
                   SizedBox(
-                    height: 50,
+                    height: 56,
                     child: ElevatedButton(
                       onPressed:
                           _isLoading
@@ -328,23 +617,29 @@ class _LoginScreenState extends State<LoginScreen> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        elevation: 2,
+                        elevation: _isLoading ? 0 : 3,
+                        shadowColor: colorScheme.primary.withOpacity(0.3),
+                        disabledBackgroundColor: colorScheme.primary
+                            .withOpacity(0.6),
+                        disabledForegroundColor: colorScheme.onPrimary
+                            .withOpacity(0.7),
                       ),
                       child:
                           _isLoading
                               ? SizedBox(
-                                height: 20,
-                                width: 20,
+                                height: 24,
+                                width: 24,
                                 child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                                  strokeWidth: 2.5,
                                   color: colorScheme.onPrimary,
                                 ),
                               )
                               : Text(
                                 _isSignUpMode ? 'Sign Up' : 'Sign In',
                                 style: const TextStyle(
-                                  fontSize: 16,
+                                  fontSize: 20,
                                   fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.5,
                                 ),
                               ),
                     ),
@@ -369,14 +664,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             _isLoading
                                 ? null
                                 : () {
-                                  setState(() {
-                                    _isSignUpMode = !_isSignUpMode;
-                                    _formKey.currentState?.reset();
-                                    _emailController.clear();
-                                    _passwordController.clear();
-                                    _confirmPasswordController.clear();
-                                    _phoneController.clear();
-                                  });
+                                  _toggleMode();
                                 },
                         child: Text(
                           _isSignUpMode ? 'Sign In' : 'Sign Up',
