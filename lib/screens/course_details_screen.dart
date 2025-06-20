@@ -8,7 +8,9 @@ import '../services/api_service.dart';
 import '../services/progress_service.dart';
 import '../services/generation_strategy_service.dart';
 import '../utils/logger.dart';
+import '../utils/constants.dart';
 import '../widgets/study_chapter_card.dart';
+import '../widgets/authenticated_image.dart';
 import '../screens/lesson_view_screen.dart';
 import '../screens/mcq_quiz_screen.dart';
 
@@ -37,6 +39,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
   UserProgress? _userProgress;
   StudyRecommendation? _studyRecommendation;
   bool _isRefreshing = false;
+  bool _isDescriptionExpanded = false;
   final String _tag = 'CourseDetailsScreen';
 
   // Flags to prevent multiple initialization calls
@@ -1049,49 +1052,325 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
   ) {
     return Card(
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(15.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              course.title,
-              style: theme.textTheme.headlineMedium?.copyWith(
-                color: theme.colorScheme.onSurface,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(course.description, style: theme.textTheme.bodyMedium),
-            if (course.createdAt != null) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(
-                    Icons.calendar_today,
-                    size: 16,
-                    color: theme.colorScheme.onSurface.withAlpha(153),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Course Cover Image Section
+          _buildCourseCoverImage(course, theme),
+
+          // Course Info Section
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  course.title,
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    color: theme.colorScheme.onSurface,
+                    fontWeight: FontWeight.bold,
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Created: ${_formatDate(course.createdAt!)}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withAlpha(153),
-                    ),
-                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Collapsible Description
+                _buildCollapsibleDescription(course.description, theme),
+
+                const SizedBox(height: 16),
+
+                // Course metadata row
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 8,
+                  children: [
+                    if (course.createdAt != null)
+                      _buildMetaChip(
+                        icon: Icons.calendar_today,
+                        label: 'Created: ${_formatDate(course.createdAt!)}',
+                        theme: theme,
+                      ),
+                    if (course.author.isNotEmpty &&
+                        course.author != 'Unknown' &&
+                        !_looksLikeUUID(course.author))
+                      _buildMetaChip(
+                        icon: Icons.person_outline,
+                        label: course.author,
+                        theme: theme,
+                      ),
+                    if (course.sections?.isNotEmpty == true ||
+                        course.lessons?.isNotEmpty == true)
+                      _buildMetaChip(
+                        icon: Icons.book_outlined,
+                        label: _getCourseContentText(course),
+                        theme: theme,
+                        isPrimary: true,
+                      ),
+                  ],
+                ),
+
+                // Add study stats if available
+                if (_userProgress != null) ...[
+                  const SizedBox(height: 20),
+                  _buildProgressSummary(theme),
                 ],
-              ),
-            ],
-            // Add study stats if available
-            if (_userProgress != null) ...[
-              const SizedBox(height: 16),
-              _buildProgressSummary(theme),
-            ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCollapsibleDescription(String description, ThemeData theme) {
+    if (description.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    const int maxLines = 3;
+    const int maxCharsBeforeEllipsis = 150;
+
+    // Check if description is long enough to need collapsing
+    final isLongDescription = description.length > maxCharsBeforeEllipsis;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AnimatedCrossFade(
+          duration: const Duration(milliseconds: 300),
+          crossFadeState:
+              _isDescriptionExpanded
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+          firstChild: Text(
+            description,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.8),
+              height: 1.5,
+            ),
+            maxLines: maxLines,
+            overflow: TextOverflow.ellipsis,
+          ),
+          secondChild: Text(
+            description,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.8),
+              height: 1.5,
+            ),
+          ),
+        ),
+        if (isLongDescription) ...[
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _isDescriptionExpanded = !_isDescriptionExpanded;
+              });
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _isDescriptionExpanded ? 'Show less' : 'Show more',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  _isDescriptionExpanded
+                      ? Icons.keyboard_arrow_up
+                      : Icons.keyboard_arrow_down,
+                  color: theme.colorScheme.primary,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCourseCoverImage(Course course, ThemeData theme) {
+    const double imageHeight = 200;
+
+    if (course.coverImageUrl != null && course.coverImageUrl!.isNotEmpty) {
+      final imageUrl = AppConstants.getImageUrl(course.coverImageUrl!);
+
+      if (imageUrl.isNotEmpty) {
+        return SizedBox(
+          height: imageHeight,
+          width: double.infinity,
+          child: AuthenticatedImage(
+            imageUrl: imageUrl,
+            height: imageHeight,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            placeholder: _buildCourseCoverPlaceholder(
+              course,
+              theme,
+              isLoading: true,
+            ),
+            errorWidget: _buildCourseCoverPlaceholder(
+              course,
+              theme,
+              hasError: true,
+            ),
+            onImageLoaded: () {
+              Logger.d(_tag, 'Course image loaded: ${course.title}');
+            },
+            onImageError: (error) {
+              Logger.e(
+                _tag,
+                'Failed to load course image: ${course.title} - $error',
+              );
+            },
+          ),
+        );
+      }
+    }
+
+    return _buildCourseCoverPlaceholder(course, theme);
+  }
+
+  Widget _buildCourseCoverPlaceholder(
+    Course course,
+    ThemeData theme, {
+    bool isLoading = false,
+    bool hasError = false,
+  }) {
+    const double imageHeight = 200;
+
+    return Container(
+      height: imageHeight,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            theme.colorScheme.primary.withOpacity(0.2),
+            theme.colorScheme.secondary.withOpacity(0.15),
+            theme.colorScheme.tertiary.withOpacity(0.1),
           ],
         ),
       ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (isLoading)
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: CircularProgressIndicator(
+                strokeWidth: 4,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  theme.colorScheme.primary,
+                ),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                hasError ? Icons.broken_image_outlined : Icons.auto_stories,
+                size: 48,
+                color: theme.colorScheme.primary.withOpacity(0.8),
+              ),
+            ),
+          if (!isLoading) ...[
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                hasError ? 'Course image unavailable' : course.title,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  color: theme.colorScheme.primary.withOpacity(0.9),
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
+  }
+
+  Widget _buildMetaChip({
+    required IconData icon,
+    required String label,
+    required ThemeData theme,
+    bool isPrimary = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color:
+            isPrimary
+                ? theme.colorScheme.primary.withOpacity(0.1)
+                : theme.colorScheme.onSurface.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(20),
+        border:
+            isPrimary
+                ? Border.all(color: theme.colorScheme.primary.withOpacity(0.3))
+                : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 16,
+            color:
+                isPrimary
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurface.withOpacity(0.7),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color:
+                  isPrimary
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurface.withOpacity(0.8),
+              fontWeight: isPrimary ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getCourseContentText(Course course) {
+    if (course.sections?.isNotEmpty == true) {
+      final chapterCount = course.sections!.length;
+      final lessonCount = course.sections!.fold<int>(
+        0,
+        (sum, section) => sum + section.lessons.length,
+      );
+
+      if (chapterCount == 1) {
+        return '$lessonCount lessons';
+      } else {
+        return '$chapterCount chapters • $lessonCount lessons';
+      }
+    } else if (course.lessons?.isNotEmpty == true) {
+      final lessonCount = course.lessons!.length;
+      return '$lessonCount lessons';
+    }
+
+    return 'Course content';
   }
 
   Widget _buildProgressSummary(ThemeData theme) {
@@ -1311,5 +1590,17 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
       onTap: () => _navigateToChapterLessons(mainSection),
       onGenerateContent: () => _startChapterGeneration('main', 'Main Chapter'),
     );
+  }
+
+  /// Helper method to detect if a string looks like a UUID
+  /// UUIDs typically have the format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  bool _looksLikeUUID(String input) {
+    if (input.length != 36) return false;
+
+    // Check for UUID pattern: 8-4-4-4-12 characters separated by hyphens
+    final uuidRegex = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    );
+    return uuidRegex.hasMatch(input);
   }
 }

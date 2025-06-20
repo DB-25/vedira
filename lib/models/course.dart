@@ -8,6 +8,7 @@ class Course {
   final String title;
   final String description;
   final String author;
+  final String? coverImageUrl;
   final List<Lesson>? lessons;
   final List<Section>? sections;
   final DateTime? createdAt;
@@ -19,6 +20,7 @@ class Course {
     required this.title,
     required this.description,
     required this.author,
+    this.coverImageUrl,
     this.lessons,
     this.sections,
     this.createdAt,
@@ -105,6 +107,10 @@ class Course {
           json['userID'] ??
           json['user_id'] ??
           'Unknown',
+      coverImageUrl:
+          json['cover_image_url']?.toString().isEmpty == true
+              ? null
+              : json['cover_image_url']?.toString(),
       lessons: parsedLessons,
       sections: parsedSections,
       createdAt:
@@ -124,6 +130,7 @@ class Course {
       'title': title,
       'description': description,
       'author': author,
+      'cover_image_url': coverImageUrl,
       'lessons': lessons?.map((lesson) => lesson.toJson()).toList(),
       'sections': sections?.map((section) => section.toJson()).toList(),
       'createdAt': createdAt?.toIso8601String(),
@@ -140,6 +147,7 @@ class Course {
     String? title,
     String? description,
     String? author,
+    String? coverImageUrl,
     List<Lesson>? lessons,
     List<Section>? sections,
     DateTime? createdAt,
@@ -151,6 +159,7 @@ class Course {
       title: title ?? this.title,
       description: description ?? this.description,
       author: author ?? this.author,
+      coverImageUrl: coverImageUrl ?? this.coverImageUrl,
       lessons: lessons ?? this.lessons,
       sections: sections ?? this.sections,
       createdAt: createdAt ?? this.createdAt,

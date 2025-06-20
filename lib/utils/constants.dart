@@ -101,4 +101,17 @@ class AppConstants {
   static const double scrollIndicatorWidth = 6.0;
   static const double scrollIndicatorThumbHeight = 20.0;
   static const Duration progressAnimationDuration = Duration(milliseconds: 100);
+
+  // Image processing
+  /// Converts an S3 URI to the get-image endpoint URL
+  /// Example: s3://bucket/key -> https://api.com/get-image?s3Url=s3://bucket/key
+  static String getImageUrl(String s3Uri) {
+    if (s3Uri.isEmpty || !s3Uri.startsWith('s3://')) {
+      return '';
+    }
+
+    // URL encode the S3 URI to handle special characters
+    final encodedUri = Uri.encodeQueryComponent(s3Uri);
+    return '$apiBaseUrl/get-image?s3Url=$encodedUri';
+  }
 }

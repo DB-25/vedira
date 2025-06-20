@@ -8,6 +8,7 @@ class LessonPlan {
   final String title;
   final String description;
   final String userID;
+  final String? coverImageUrl;
   final List<Chapter> chapters;
   final Map<String, ChapterStatus> chaptersStatus;
 
@@ -16,6 +17,7 @@ class LessonPlan {
     required this.title,
     required this.description,
     required this.userID,
+    this.coverImageUrl,
     required this.chapters,
     this.chaptersStatus = const {},
   });
@@ -78,6 +80,10 @@ class LessonPlan {
       title: json['title'] ?? '',
       description: json['description'] ?? '',
       userID: json['UserID'] ?? json['userID'] ?? json['user_id'] ?? '',
+      coverImageUrl:
+          json['cover_image_url']?.toString().isEmpty == true
+              ? null
+              : json['cover_image_url']?.toString(),
       chapters: parsedChapters,
       chaptersStatus: parsedChaptersStatus,
     );
@@ -89,6 +95,7 @@ class LessonPlan {
       'title': title,
       'description': description,
       'UserID': userID,
+      'cover_image_url': coverImageUrl,
       'chapters': chapters.map((chapter) => chapter.toJson()).toList(),
       'chapters_status': chaptersStatus.map(
         (key, value) => MapEntry(key, value.toJson()),
@@ -116,6 +123,7 @@ class LessonPlan {
       title: title,
       description: description,
       author: userID,
+      coverImageUrl: coverImageUrl,
       sections: chapters.map((chapter) => chapter.toSection()).toList(),
       chaptersStatus: chaptersStatus,
     );
@@ -137,6 +145,7 @@ class LessonPlan {
     String? title,
     String? description,
     String? userID,
+    String? coverImageUrl,
     List<Chapter>? chapters,
     Map<String, ChapterStatus>? chaptersStatus,
   }) {
@@ -145,6 +154,7 @@ class LessonPlan {
       title: title ?? this.title,
       description: description ?? this.description,
       userID: userID ?? this.userID,
+      coverImageUrl: coverImageUrl ?? this.coverImageUrl,
       chapters: chapters ?? this.chapters,
       chaptersStatus: chaptersStatus ?? this.chaptersStatus,
     );
