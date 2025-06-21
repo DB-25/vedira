@@ -7,6 +7,7 @@ import '../screens/login_screen.dart';
 import '../screens/privacy_policy_screen.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/starred_courses_service.dart';
 import '../utils/logger.dart';
 import '../utils/theme_manager.dart';
 import '../widgets/course_card.dart';
@@ -20,25 +21,86 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final ApiService _apiService = ApiService();
   final AuthService _authService = AuthService.instance;
+  final StarredCoursesService _starredService = StarredCoursesService.instance;
   late Future<List<Course>> _coursesFuture;
   bool _isLoading = false;
   final String _tag = 'HomeScreen';
+  
+  // Local state for smooth animations
+  List<Course>? _currentCourses;
+  Set<String> _starredCourseIds = {};
 
   @override
   void initState() {
     super.initState();
     Logger.i(_tag, 'Screen initialized');
+    _loadStarredCourses();
 
     if (widget.preloadedCourses != null) {
-      Logger.i(_tag, 'Using preloaded courses from splash screen');
-      _coursesFuture = widget.preloadedCourses!;
+      Logger.i(_tag, 'Using preloaded courses from splash screen, will sort them');
+      _coursesFuture = _sortPreloadedCourses(widget.preloadedCourses!);
     } else {
       Logger.i(_tag, 'No preloaded courses, loading course list');
       _loadCourses();
     }
+  }
+
+  Future<void> _loadStarredCourses() async {
+    try {
+      final starredIds = await _starredService.getStarredCourses();
+      setState(() {
+        _starredCourseIds = starredIds;
+      });
+    } catch (e) {
+      Logger.e(_tag, 'Error loading starred courses', error: e);
+    }
+  }
+
+  Future<void> _handleStarToggle(String courseId, bool newStarState) async {
+    if (_currentCourses == null) return;
+    
+    Logger.d(_tag, 'Handling star toggle for course $courseId to $newStarState');
+    
+    // Update starred state in storage
+    try {
+      if (newStarState) {
+        await _starredService.starCourse(courseId);
+      } else {
+        await _starredService.unstarCourse(courseId);
+      }
+    } catch (e) {
+      Logger.e(_tag, 'Error updating star state in storage', error: e);
+    }
+    
+    // Update local starred state and re-sort the entire list
+    setState(() {
+      if (newStarState) {
+        _starredCourseIds.add(courseId);
+      } else {
+        _starredCourseIds.remove(courseId);
+      }
+      
+      // Re-sort the current courses list with updated star states
+      _currentCourses!.sort((a, b) {
+        final aIsStarred = _starredCourseIds.contains(a.courseID);
+        final bIsStarred = _starredCourseIds.contains(b.courseID);
+        
+        if (aIsStarred && !bIsStarred) {
+          return -1; // a comes first
+        } else if (!aIsStarred && bIsStarred) {
+          return 1; // b comes first
+        } else {
+          return 0; // maintain original order for courses with same star status
+        }
+      });
+    });
+    
+    final starredCount = _starredCourseIds.length;
+    final totalCourses = _currentCourses?.length ?? 0;
+    Logger.d(_tag, 'Updated star state for course $courseId to $newStarState and re-sorted list. Starred: $starredCount/$totalCourses courses');
   }
 
   @override
@@ -50,8 +112,83 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadCourses() async {
     Logger.i(_tag, 'Loading course list');
     setState(() {
-      _coursesFuture = _apiService.getCourseList();
+      _coursesFuture = _loadAndSortCourses();
     });
+  }
+
+  Future<List<Course>> _loadAndSortCourses() async {
+    try {
+      // Load courses from API
+      final courses = await _apiService.getCourseList();
+      
+      // Get starred course IDs
+      final starredCourseIds = await _starredService.getStarredCourses();
+      
+      if (starredCourseIds.isEmpty) {
+        Logger.d(_tag, 'No starred courses, returning original order');
+        return courses;
+      }
+      
+      // Sort courses: starred first, then others
+      final sortedCourses = [...courses];
+      sortedCourses.sort((a, b) {
+        final aIsStarred = starredCourseIds.contains(a.courseID);
+        final bIsStarred = starredCourseIds.contains(b.courseID);
+        
+        if (aIsStarred && !bIsStarred) {
+          return -1; // a comes first
+        } else if (!aIsStarred && bIsStarred) {
+          return 1; // b comes first
+        } else {
+          return 0; // maintain original order for courses with same star status
+        }
+      });
+      
+      final starredCount = starredCourseIds.length;
+      Logger.i(_tag, 'Sorted ${courses.length} courses with $starredCount starred courses at the top');
+      
+      return sortedCourses;
+    } catch (e) {
+      Logger.e(_tag, 'Error loading and sorting courses', error: e);
+      rethrow;
+    }
+  }
+
+  Future<List<Course>> _sortPreloadedCourses(Future<List<Course>> coursesFuture) async {
+    try {
+      final courses = await coursesFuture;
+      
+      // Get starred course IDs
+      final starredCourseIds = await _starredService.getStarredCourses();
+      
+      if (starredCourseIds.isEmpty) {
+        Logger.d(_tag, 'No starred courses, returning preloaded courses in original order');
+        return courses;
+      }
+      
+      // Sort courses: starred first, then others
+      final sortedCourses = [...courses];
+      sortedCourses.sort((a, b) {
+        final aIsStarred = starredCourseIds.contains(a.courseID);
+        final bIsStarred = starredCourseIds.contains(b.courseID);
+        
+        if (aIsStarred && !bIsStarred) {
+          return -1; // a comes first
+        } else if (!aIsStarred && bIsStarred) {
+          return 1; // b comes first
+        } else {
+          return 0; // maintain original order for courses with same star status
+        }
+      });
+      
+      final starredCount = starredCourseIds.length;
+      Logger.i(_tag, 'Sorted ${courses.length} preloaded courses with $starredCount starred courses at the top');
+      
+      return sortedCourses;
+    } catch (e) {
+      Logger.e(_tag, 'Error sorting preloaded courses', error: e);
+      rethrow;
+    }
   }
 
   Future<void> _refreshCourses() async {
@@ -243,13 +380,42 @@ class _HomeScreenState extends State<HomeScreen> {
 
             final courses = snapshot.data!;
             Logger.i(_tag, 'Loaded ${courses.length} courses');
+            
+            // Update local state when data loads
+            if (_currentCourses == null || _currentCourses!.length != courses.length) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                setState(() {
+                  _currentCourses = List.from(courses);
+                });
+              });
+            }
+            
+            // Use local state if available, otherwise use snapshot data
+            final displayCourses = _currentCourses ?? courses;
+            
             return ListView.builder(
               padding: const EdgeInsets.all(16.0),
-              itemCount: courses.length,
+              itemCount: displayCourses.length,
               itemBuilder: (context, index) {
-                final course = courses[index];
-                Logger.v(_tag, 'Rendering course: ${course.title}');
-                return CourseCard(course: course);
+                final course = displayCourses[index];
+                final isStarred = _starredCourseIds.contains(course.courseID);
+                
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  child: CourseCard(
+                    key: ValueKey(course.courseID), // Unique key for each card
+                    course: course,
+                    isStarred: isStarred,
+                    onDeleted: () {
+                      Logger.i(_tag, 'Course deleted, refreshing course list');
+                      _refreshCourses();
+                    },
+                    onStarToggle: (newStarState) {
+                      _handleStarToggle(course.courseID, newStarState);
+                    },
+                  ),
+                );
               },
             );
           },

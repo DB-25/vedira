@@ -214,14 +214,53 @@ class ApiService {
   }
 
   // Delete a course
-  Future<bool> deleteCourse(String id) async {
-    // Placeholder implementation
-    Logger.api('DELETE', '/delete-course/$id (PLACEHOLDER)');
-    Logger.w(
-      _tag,
-      'deleteCourse method is a placeholder and does not make a real API call',
-    );
-    return true;
+  Future<bool> deleteCourse(String courseId) async {
+    // Validate courseId parameter
+    if (courseId.isEmpty) {
+      Logger.e(_tag, 'Empty course ID provided to deleteCourse method');
+      throw Exception('Course ID cannot be empty');
+    }
+
+    // Check if internet is available
+    bool isConnected = await _connectivityService.isInternetAvailable();
+    if (!isConnected) {
+      final error = AppConstants.errorNoInternet;
+      Logger.e(_tag, error);
+      throw Exception(error);
+    }
+
+    final endpoint = '/delete-course';
+    final url = '$baseUrl$endpoint?course_id=$courseId';
+
+    Logger.i(_tag, 'Deleting course with ID: $courseId');
+
+    try {
+      final response = await _apiClient.delete(url);
+
+      Logger.api(
+        'DELETE',
+        endpoint,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+
+      if (response.statusCode == 200) {
+        Logger.i(_tag, 'Course deleted successfully', data: {'courseId': courseId});
+        return true;
+      } else if (response.statusCode == 404) {
+        final error = 'Course not found';
+        Logger.e(_tag, error);
+        throw Exception(error);
+      } else {
+        final error = 'Error deleting course: Status ${response.statusCode}';
+        Logger.e(_tag, error, error: response.body);
+        throw Exception(error);
+      }
+    } catch (e) {
+      final error = 'Error deleting course: $e';
+      Logger.e(_tag, error, error: e, stackTrace: StackTrace.current);
+      throw Exception(error);
+    }
   }
 
   // Get lesson content from API - returns structured data for pagination

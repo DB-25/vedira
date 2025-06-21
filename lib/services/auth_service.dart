@@ -360,7 +360,7 @@ class AuthService {
         return false;
       }
 
-      final requestBody = {'refresh_token': refreshTokenValue};
+      final requestBody = {'refreshToken': refreshTokenValue};
 
       final response = await http.post(
         Uri.parse(url),
