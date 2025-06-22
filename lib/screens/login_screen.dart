@@ -278,12 +278,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   Icon(Icons.school, size: 80, color: colorScheme.primary),
                   const SizedBox(height: AppConstants.defaultPadding),
                   Text(
-                    'Lesson Buddy',
-                    style: AppConstants.headingStyle.copyWith(
-                      color: colorScheme.primary,
-                      fontSize: 32,
+                    'Vedira',
+                    style: theme.textTheme.headlineLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
                     ),
-                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: AppConstants.largePadding * 2),
 

@@ -195,11 +195,12 @@ class _SplashScreenState extends State<SplashScreen> {
             Icon(Icons.school, size: 80, color: colorScheme.primary),
             const SizedBox(height: 24),
             Text(
-              'Lesson Buddy',
+              'Vedira',
               style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
                 color: colorScheme.primary,
+                letterSpacing: 1.2,
               ),
             ),
             const SizedBox(height: 48),

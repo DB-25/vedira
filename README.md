@@ -1,71 +1,68 @@
-# LessonBuddy
+# Vedira
 
-A Flutter application for creating and managing educational courses and lessons.
+A personalized learning companion that creates custom courses tailored to your goals and schedule.
 
 ## Features
 
-- Light/dark theme toggle
-- Course creation and management
-- Lesson organization and viewing
-- Modern UI with custom theming
+- **Personalized Learning**: Create custom courses based on your specific learning goals
+- **Flexible Scheduling**: Set your own pace with structured daily lessons
+- **Interactive Quizzes**: Reinforce learning with quizzes after each lesson
+- **Progress Tracking**: Monitor your learning progress and identify areas for improvement
+- **Cross-Platform**: Available on iOS, Android, Web, Windows, macOS, and Linux
 
 ## Getting Started
 
-This project is a Flutter application.
+This project is a Flutter application. To get started with Flutter development, view the [online documentation](https://docs.flutter.dev/), which offers tutorials, samples, guidance on mobile development, and a full API reference.
 
 ### Prerequisites
 
-- Flutter SDK
+- Flutter SDK (latest stable version)
 - Dart SDK
+- Platform-specific development tools (Xcode for iOS, Android Studio for Android, etc.)
 
 ### Installation
 
-1. Clone the repository
-
+1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/lesson_buddy.git
+git clone https://github.com/yourusername/vedira.git
 ```
 
-2. Navigate to the project directory
-
+2. Navigate to the project directory:
 ```bash
-cd lesson_buddy
+cd vedira
 ```
 
-3. Install dependencies
-
+3. Install dependencies:
 ```bash
 flutter pub get
 ```
 
-4. Run the app
-
+4. Run the application:
 ```bash
 flutter run
 ```
 
 ## Project Structure
 
-```
-LessonBuddyApp
-│
-├── main.dart
-├── screens/
-│   ├── login_screen.dart
-│   ├── home_screen.dart
-│   ├── course_details_screen.dart
-│   ├── lesson_screen.dart
-│   └── create_course_screen.dart
-├── models/
-│   ├── course.dart
-│   └── lesson.dart
-├── services/
-│   └── api_service.dart
-├── widgets/
-│   ├── course_card.dart
-│   ├── section_tile.dart
-│   └── lesson_tile.dart
-└── utils/
-    ├── constants.dart
-    └── theme_manager.dart
-```
+- `lib/` - Main application code
+  - `screens/` - UI screens and pages
+  - `services/` - Business logic and API services
+  - `models/` - Data models
+  - `widgets/` - Reusable UI components
+  - `utils/` - Utility functions and constants
+
+## Main App Class
+
+The main application class is `VediraApp`, which serves as the root widget of the application.
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

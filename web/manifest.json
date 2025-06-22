@@ -1,11 +1,11 @@
 {
-    "name": "lesson_buddy",
-    "short_name": "lesson_buddy",
+    "name": "Vedira",
+    "short_name": "Vedira",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "A personalized learning companion that creates custom courses tailored to your goals and schedule.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

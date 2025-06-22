@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.lessonbuddy" "\0"
-            VALUE "FileDescription", "lesson_buddy" "\0"
+            VALUE "CompanyName", "com.vedira" "\0"
+            VALUE "FileDescription", "Vedira" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "lesson_buddy" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025 com.lessonbuddy. All rights reserved." "\0"
-            VALUE "OriginalFilename", "lesson_buddy.exe" "\0"
-            VALUE "ProductName", "lesson_buddy" "\0"
+            VALUE "InternalName", "vedira" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2025 com.vedira. All rights reserved." "\0"
+            VALUE "OriginalFilename", "vedira.exe" "\0"
+            VALUE "ProductName", "Vedira" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

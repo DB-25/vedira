@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'logger.dart';
-import 'constants.dart';
 
 class ThemeManager extends ChangeNotifier {
   static const String _themePreferenceKey = 'theme_mode';
@@ -152,45 +151,57 @@ class ThemeManager extends ChangeNotifier {
 }
 
 // Light Theme
-final ThemeData lessonBuddyLightTheme = ThemeData(
-  brightness: Brightness.light,
-  primaryColor: AppConstants.primaryColorLight,
-  scaffoldBackgroundColor: AppConstants.backgroundColorLight,
-  cardColor: AppConstants.cardColorLight,
-  textTheme: TextTheme(
-    bodyLarge: TextStyle(color: AppConstants.textColorLight),
-    bodyMedium: TextStyle(color: AppConstants.textColorSecondaryLight),
+final ThemeData vediraLightTheme = ThemeData(
+  useMaterial3: true,
+  colorScheme: ColorScheme.fromSeed(
+    seedColor: const Color(0xFF6366F1), // Indigo
+    brightness: Brightness.light,
   ),
-  colorScheme: ColorScheme.light(
-    primary: AppConstants.primaryColorLight,
-    secondary: AppConstants.accentColorLight,
-    surface: AppConstants.cardColorLight,
-    error: Color(0xFFE57373),
-    onPrimary: Colors.white,
-    onSecondary: Colors.white,
-    onSurface: AppConstants.textColorLight,
-    onError: Colors.white,
+  appBarTheme: const AppBarTheme(
+    elevation: 0,
+    scrolledUnderElevation: 1,
+    centerTitle: true,
+  ),
+  cardTheme: CardThemeData(
+    elevation: 2,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    ),
+  ),
+  elevatedButtonTheme: ElevatedButtonThemeData(
+    style: ElevatedButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+    ),
   ),
 );
 
 // Dark Theme
-final ThemeData lessonBuddyDarkTheme = ThemeData(
-  brightness: Brightness.dark,
-  primaryColor: AppConstants.primaryColorDark,
-  scaffoldBackgroundColor: AppConstants.backgroundColorDark,
-  cardColor: AppConstants.cardColorDark,
-  textTheme: TextTheme(
-    bodyLarge: TextStyle(color: AppConstants.textColorDark),
-    bodyMedium: TextStyle(color: AppConstants.textColorSecondaryDark),
+final ThemeData vediraDarkTheme = ThemeData(
+  useMaterial3: true,
+  colorScheme: ColorScheme.fromSeed(
+    seedColor: const Color(0xFF6366F1), // Indigo
+    brightness: Brightness.dark,
   ),
-  colorScheme: ColorScheme.dark(
-    primary: AppConstants.primaryColorDark,
-    secondary: AppConstants.accentColorDark,
-    surface: AppConstants.cardColorDark,
-    error: Color(0xFFFF8A80),
-    onPrimary: Colors.black,
-    onSecondary: Colors.black,
-    onSurface: AppConstants.textColorDark,
-    onError: Colors.black,
+  appBarTheme: const AppBarTheme(
+    elevation: 0,
+    scrolledUnderElevation: 1,
+    centerTitle: true,
+  ),
+  cardTheme: CardThemeData(
+    elevation: 2,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    ),
+  ),
+  elevatedButtonTheme: ElevatedButtonThemeData(
+    style: ElevatedButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+    ),
   ),
 );

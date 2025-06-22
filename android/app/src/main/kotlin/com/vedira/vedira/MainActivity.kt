@@ -1,4 +1,4 @@
-package com.lessonbuddy.lesson_buddy
+package com.vedira.vedira
 
 import io.flutter.embedding.android.FlutterActivity
 

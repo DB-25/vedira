@@ -15,7 +15,7 @@ void main() async {
 
   // Initialize logger
   Logger.setLevel(Logger.info);
-  Logger.i('App', 'Starting LessonBuddy app');
+  Logger.i('App', 'Starting Vedira app');
 
   // Initialize SharedPreferences
   SharedPreferences prefs;
@@ -33,13 +33,13 @@ void main() async {
   runApp(
     ChangeNotifierProvider<ThemeManager>.value(
       value: themeManager,
-      child: const LessonBuddyApp(),
+      child: const VediraApp(),
     ),
   );
 }
 
-class LessonBuddyApp extends StatelessWidget {
-  const LessonBuddyApp({super.key});
+class VediraApp extends StatelessWidget {
+  const VediraApp({super.key});
 
   // Global navigator key for authentication navigation
   static final GlobalKey<NavigatorState> navigatorKey =
@@ -52,9 +52,9 @@ class LessonBuddyApp extends StatelessWidget {
     return AuthWrapper(
       child: MaterialApp(
         navigatorKey: navigatorKey,
-        title: 'Lesson Buddy',
-        theme: lessonBuddyLightTheme,
-        darkTheme: lessonBuddyDarkTheme,
+        title: 'Vedira',
+        theme: vediraLightTheme,
+        darkTheme: vediraDarkTheme,
         themeMode: themeManager.themeMode,
         home: const SplashScreen(),
         debugShowCheckedModeBanner: false,
@@ -95,7 +95,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
           );
 
           // Use global navigator key to navigate from anywhere in the app
-          final navigator = LessonBuddyApp.navigatorKey.currentState;
+          final navigator = VediraApp.navigatorKey.currentState;
           if (navigator != null) {
             navigator.pushAndRemoveUntil(
               MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -124,5 +124,24 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   Widget build(BuildContext context) {
     return widget.child;
+  }
+}
+
+
+
+// Global function to show snackbar from anywhere in the app
+void showGlobalSnackBar(String message, {bool isError = false}) {
+  final navigator = VediraApp.navigatorKey.currentState;
+  if (navigator != null) {
+    final context = navigator.overlay?.context;
+    if (context != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: isError ? Colors.red : null,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 }

@@ -267,11 +267,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final themeManager = Provider.of<ThemeManager>(context);
     final isDarkMode = themeManager.isDarkMode;
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lesson Buddy'),
+        title: const Text('Vedira'),
+        backgroundColor: theme.colorScheme.surface,
+        foregroundColor: theme.colorScheme.onSurface,
+        elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _refreshCourses,
+            tooltip: 'Refresh courses',
+          ),
           IconButton(
             icon: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
             onPressed: () async {
@@ -450,10 +459,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           const SizedBox(height: 24),
 
           Text(
-            'Welcome to Lesson Buddy!',
-            style: theme.textTheme.headlineLarge?.copyWith(
-              color: colorScheme.onSurface,
+            'Welcome to Vedira!',
+            style: theme.textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.bold,
+              color: theme.colorScheme.primary,
             ),
             textAlign: TextAlign.center,
           ),
