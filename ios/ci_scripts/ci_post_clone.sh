@@ -8,8 +8,9 @@ echo "Current directory: $(pwd)"
 echo "CI_WORKSPACE: $CI_WORKSPACE"
 
 # The default execution directory of this script is the ci_scripts directory.
-cd $CI_WORKSPACE
-echo "Changed to workspace: $(pwd)"
+# Navigate to the project root (two levels up from ios/ci_scripts)
+cd "$(dirname "$0")/../.."
+echo "Changed to project root: $(pwd)"
 
 echo "Installing Flutter..."
 
@@ -35,7 +36,7 @@ brew install cocoapods
 
 # Install CocoaPods dependencies.
 echo "Running pod install in ios directory..."
-cd $CI_WORKSPACE/ios
+cd ios
 pod install
 
 echo "Setup complete!"
