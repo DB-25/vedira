@@ -182,7 +182,6 @@ class StudyChapterCard extends StatelessWidget {
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.primary,
                 fontWeight: FontWeight.w600,
-                fontSize: 11,
               ),
             ),
           ],
@@ -208,7 +207,6 @@ class StudyChapterCard extends StatelessWidget {
               style: theme.textTheme.bodySmall?.copyWith(
                 color: Colors.green.shade700,
                 fontWeight: FontWeight.w600,
-                fontSize: 11,
               ),
             ),
           ],
@@ -230,11 +228,10 @@ class StudyChapterCard extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             'Locked',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: Colors.orange.shade700,
-              fontWeight: FontWeight.w600,
-              fontSize: 11,
-            ),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                color: Colors.orange.shade700,
+                fontWeight: FontWeight.w600,
+              ),
           ),
         ],
       ),

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_highlight/themes/github.dart';
 import 'package:flutter_highlight/themes/vs2015.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class CodeBlockBuilder extends StatelessWidget {
   final String code;
@@ -48,7 +49,7 @@ class CodeBlockBuilder extends StatelessWidget {
                   if (language.isNotEmpty)
                     Text(
                       language,
-                      style: TextStyle(
+                      style: GoogleFonts.poppins(
                         fontSize: 12,
                         color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
                         fontWeight: FontWeight.w500,
@@ -76,7 +77,7 @@ class CodeBlockBuilder extends StatelessWidget {
                             const SizedBox(width: 4),
                             Text(
                               'Copy',
-                              style: TextStyle(
+                              style: GoogleFonts.poppins(
                                 fontSize: 12,
                                 color:
                                     isDarkMode
@@ -103,8 +104,7 @@ class CodeBlockBuilder extends StatelessWidget {
                     horizontal: 16,
                     vertical: 12,
                   ),
-                  textStyle: const TextStyle(
-                    fontFamily: 'monospace',
+                  textStyle: GoogleFonts.jetBrainsMono(
                     fontSize: 14,
                     height: 1.5,
                   ),
@@ -119,8 +119,7 @@ class CodeBlockBuilder extends StatelessWidget {
                   ),
                   child: SelectableText(
                     code,
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
+                    style: GoogleFonts.jetBrainsMono(
                       fontSize: 14,
                       height: 1.5,
                     ),

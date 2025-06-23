@@ -1,5 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import '../models/course.dart';
 import '../services/api_service.dart';
@@ -17,7 +21,8 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen>
+    with TickerProviderStateMixin {
   final String _tag = 'SplashScreen';
   bool _initialized = false;
   final ApiService _apiService = ApiService();
@@ -26,11 +31,81 @@ class _SplashScreenState extends State<SplashScreen> {
   late Future<List<Course>> _coursesFuture;
   String _statusMessage = 'Initializing...';
 
+  // Animation controllers
+  late AnimationController _pulseController;
+  late AnimationController _rotationController;
+  late AnimationController _particleController;
+  late Animation<double> _pulseAnimation;
+  late Animation<double> _rotationAnimation;
+
+  // Particle animation variables
+  final List<Particle> _particles = [];
+  final int _particleCount = 20;
+
   @override
   void initState() {
     super.initState();
     Logger.i(_tag, 'Initializing splash screen');
+    
+    // Initialize animation controllers
+    _setupAnimations();
+    
+    // Generate particles
+    _generateParticles();
+    
+    // Hide system UI for immersive experience
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
+    
     _initializeApp();
+  }
+
+  void _setupAnimations() {
+    // Pulse animation for the logo
+    _pulseController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    );
+    _pulseAnimation = Tween<double>(
+      begin: 0.8,
+      end: 1.2,
+    ).animate(CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    ));
+
+    // Rotation animation for decorative elements
+    _rotationController = AnimationController(
+      duration: const Duration(seconds: 20),
+      vsync: this,
+    );
+    _rotationAnimation = Tween<double>(
+      begin: 0,
+      end: 2 * math.pi,
+    ).animate(_rotationController);
+
+    // Particle animation
+    _particleController = AnimationController(
+      duration: const Duration(seconds: 5),
+      vsync: this,
+    );
+
+    // Start animations
+    _pulseController.repeat(reverse: true);
+    _rotationController.repeat();
+    _particleController.repeat();
+  }
+
+  void _generateParticles() {
+    final random = math.Random();
+    for (int i = 0; i < _particleCount; i++) {
+      _particles.add(Particle(
+        x: random.nextDouble(),
+        y: random.nextDouble(),
+        size: random.nextDouble() * 4 + 2,
+        speed: random.nextDouble() * 0.5 + 0.1,
+        opacity: random.nextDouble() * 0.6 + 0.2,
+      ));
+    }
   }
 
   Future<void> _initializeApp() async {
@@ -47,14 +122,12 @@ class _SplashScreenState extends State<SplashScreen> {
       Logger.i(_tag, 'Theme initialized successfully');
     } catch (e) {
       Logger.e(_tag, 'Error during theme initialization', error: e);
-      // Check if it's ready anyway
       isThemeReady = themeManager.isInitialized;
       if (isThemeReady) {
         Logger.i(_tag, 'Theme was already initialized');
       }
     }
 
-    // If theme isn't ready yet, wait for it to be ready
     if (!isThemeReady) {
       Logger.i(_tag, 'Waiting for theme manager to complete initialization');
       while (!themeManager.isInitialized) {
@@ -95,9 +168,7 @@ class _SplashScreenState extends State<SplashScreen> {
           } else {
             Logger.w(_tag, 'Auto-login failed: ${result['message']}');
             _updateStatus('Auto-login failed, please sign in manually');
-            // Clear invalid credentials
             await _secureStorage.clearCredentials();
-            // Wait a moment to show the message
             await Future.delayed(const Duration(seconds: 1));
           }
         } else {
@@ -106,14 +177,12 @@ class _SplashScreenState extends State<SplashScreen> {
       } catch (e) {
         Logger.e(_tag, 'Error during auto-login attempt', error: e);
         _updateStatus('Auto-login failed');
-        // Clear potentially corrupted credentials
         await _secureStorage.clearCredentials();
         await Future.delayed(const Duration(seconds: 1));
       }
     }
 
     if (isLoggedIn) {
-      // User is logged in, preload courses
       Logger.i(_tag, 'User is authenticated, preloading courses');
       _updateStatus('Loading courses...');
       _coursesFuture = _apiService.getCourseList();
@@ -124,7 +193,6 @@ class _SplashScreenState extends State<SplashScreen> {
         _updateStatus('Ready!');
       } catch (e) {
         Logger.e(_tag, 'Error preloading courses', error: e);
-        // Continue with empty courses list
         _coursesFuture = Future.value([]);
         _updateStatus('Ready!');
       }
@@ -149,6 +217,10 @@ class _SplashScreenState extends State<SplashScreen> {
   void _navigateToNextScreen() async {
     if (!mounted) return;
 
+    // Restore system UI
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
+        overlays: [SystemUiOverlay.top, SystemUiOverlay.bottom]);
+
     final isLoggedIn = await _authService.isLoggedIn();
 
     if (!mounted) return;
@@ -156,16 +228,36 @@ class _SplashScreenState extends State<SplashScreen> {
     if (isLoggedIn) {
       Logger.i(_tag, 'Navigating to HomeScreen (authenticated)');
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => HomeScreen(preloadedCourses: _coursesFuture),
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              HomeScreen(preloadedCourses: _coursesFuture),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 800),
         ),
       );
     } else {
       Logger.i(_tag, 'Navigating to LoginScreen (not authenticated)');
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const LoginScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 800),
+        ),
       );
     }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    _rotationController.dispose();
+    _particleController.dispose();
+    super.dispose();
   }
 
   @override
@@ -176,48 +268,356 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // Navigate based on authentication status once initialization is complete
     if (_initialized) {
-      // Use a post-frame callback to navigate after the current frame completes
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _navigateToNextScreen();
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (mounted) {
+            _navigateToNextScreen();
+          }
+        });
       });
     }
 
     return Scaffold(
-      backgroundColor:
-          isDarkMode
-              ? const Color(0xFF121212) // Dark mode background
-              : const Color(0xFFFAFAFA), // Light mode background
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDarkMode
+                ? [
+                    const Color(0xFF0A0A0A),
+                    const Color(0xFF1A1A2E),
+                    const Color(0xFF16213E),
+                  ]
+                : [
+                    const Color(0xFFF8F9FA),
+                    const Color(0xFFE3F2FD),
+                    const Color(0xFFBBDEFB),
+                  ],
+          ),
+        ),
+        child: Stack(
           children: [
-            // App logo or icon
-            Icon(Icons.school, size: 80, color: colorScheme.primary),
-            const SizedBox(height: 24),
-            Text(
-              'Vedira',
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: colorScheme.primary,
-                letterSpacing: 1.2,
+            // Animated particles background
+            AnimatedBuilder(
+              animation: _particleController,
+              builder: (context, child) {
+                return CustomPaint(
+                  painter: ParticlePainter(
+                    particles: _particles,
+                    progress: _particleController.value,
+                    color: colorScheme.primary.withOpacity(0.3),
+                  ),
+                  size: Size.infinite,
+                );
+              },
+            ),
+
+            // Rotating decorative elements
+            AnimatedBuilder(
+              animation: _rotationController,
+              builder: (context, child) {
+                return Positioned.fill(
+                  child: Stack(
+                    children: [
+                      // Top-left decoration
+                      Positioned(
+                        top: -50,
+                        left: -50,
+                        child: Transform.rotate(
+                          angle: _rotationAnimation.value,
+                          child: Container(
+                            width: 150,
+                            height: 150,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: colorScheme.secondary.withOpacity(0.2),
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Bottom-right decoration
+                      Positioned(
+                        bottom: -75,
+                        right: -75,
+                        child: Transform.rotate(
+                          angle: -_rotationAnimation.value,
+                          child: Container(
+                            width: 200,
+                            height: 200,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: colorScheme.tertiary.withOpacity(0.15),
+                                width: 3,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+
+            // Main content
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Logo section with animations
+                  AnimatedBuilder(
+                    animation: _pulseAnimation,
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: _pulseAnimation.value,
+                        child: Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                colorScheme.primary,
+                                colorScheme.secondary,
+                              ],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: colorScheme.primary.withOpacity(0.3),
+                                blurRadius: 20,
+                                spreadRadius: 5,
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.school_rounded,
+                            size: 60,
+                            color: Colors.white,
+                          ),
+                        )
+                            .animate(onPlay: (controller) => controller.repeat())
+                            .shimmer(
+                              duration: 2000.ms,
+                              color: Colors.white.withOpacity(0.3),
+                            ),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 40),
+
+                  // App name with gradient text and shadow
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: ShaderMask(
+                      shaderCallback: (bounds) => LinearGradient(
+                        colors: [
+                          colorScheme.primary,
+                          colorScheme.secondary,
+                          colorScheme.tertiary,
+                        ],
+                      ).createShader(bounds),
+                      child: Text(
+                        'Vedira',
+                        style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 2.0,
+                          shadows: [
+                            Shadow(
+                              offset: const Offset(0, 4),
+                              blurRadius: 8,
+                              color: Colors.black.withOpacity(0.3),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                      .animate()
+                      .fadeIn(delay: 200.ms, duration: 800.ms)
+                      .slideY(begin: 0.3, end: 0),
+
+                  const SizedBox(height: 16),
+
+                  // Tagline
+                  Text(
+                    'Your Personalized Learning Companion',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: isDarkMode
+                          ? Colors.white.withOpacity(0.8)
+                          : Colors.black.withOpacity(0.7),
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.5,
+                    ),
+                    textAlign: TextAlign.center,
+                  )
+                      .animate()
+                      .fadeIn(delay: 400.ms, duration: 800.ms)
+                      .slideY(begin: 0.3, end: 0),
+
+                  const SizedBox(height: 80),
+
+                  // Loading animation
+                  SizedBox(
+                    width: 80,
+                    height: 80,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Outer ring
+                        SizedBox(
+                          width: 80,
+                          height: 80,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              colorScheme.primary.withOpacity(0.3),
+                            ),
+                          ),
+                        ),
+                        // Inner ring with animation
+                        SizedBox(
+                          width: 60,
+                          height: 60,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 4,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                      .animate(onPlay: (controller) => controller.repeat())
+                      .rotate(duration: 2000.ms)
+                      .fadeIn(delay: 600.ms, duration: 400.ms),
+
+                  const SizedBox(height: 32),
+
+                  // Status message with typewriter effect
+                  Container(
+                    height: 24,
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: Text(
+                        _statusMessage,
+                        key: ValueKey(_statusMessage),
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: isDarkMode
+                              ? Colors.white.withOpacity(0.7)
+                              : Colors.black.withOpacity(0.6),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                      .animate()
+                      .fadeIn(delay: 800.ms, duration: 400.ms),
+                ],
               ),
             ),
-            const SizedBox(height: 48),
-            const CircularProgressIndicator(),
-            const SizedBox(height: 24),
-            // Status message
-            Text(
-              _statusMessage,
-              style: TextStyle(
-                fontSize: 16,
-                color: colorScheme.onSurface.withOpacity(0.7),
+
+            // Bottom decorative elements
+            Positioned(
+              bottom: 60,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(3, (index) {
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: colorScheme.primary.withOpacity(0.6),
+                    ),
+                  )
+                      .animate(
+                        onPlay: (controller) => controller.repeat(),
+                      )
+                      .fade(
+                        duration: 1000.ms,
+                        delay: (index * 200).ms,
+                      );
+                }),
               ),
-              textAlign: TextAlign.center,
             ),
           ],
         ),
       ),
     );
   }
+}
+
+// Particle class for floating animation
+class Particle {
+  double x;
+  double y;
+  final double size;
+  final double speed;
+  final double opacity;
+
+  Particle({
+    required this.x,
+    required this.y,
+    required this.size,
+    required this.speed,
+    required this.opacity,
+  });
+}
+
+// Custom painter for particle effects
+class ParticlePainter extends CustomPainter {
+  final List<Particle> particles;
+  final double progress;
+  final Color color;
+
+  ParticlePainter({
+    required this.particles,
+    required this.progress,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    for (final particle in particles) {
+      // Update particle position
+      particle.y -= particle.speed * progress * 0.01;
+      if (particle.y < -0.1) {
+        particle.y = 1.1;
+        particle.x = math.Random().nextDouble();
+      }
+
+      // Draw particle
+      canvas.drawCircle(
+        Offset(
+          particle.x * size.width,
+          particle.y * size.height,
+        ),
+        particle.size,
+        paint..color = color.withOpacity(particle.opacity),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

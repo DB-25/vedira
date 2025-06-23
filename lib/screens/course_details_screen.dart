@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 
 import '../models/course.dart';
-import '../models/section.dart';
 import '../models/lesson.dart';
+import '../models/section.dart';
 import '../models/user_progress.dart';
-import '../services/api_service.dart';
-import '../services/progress_service.dart';
-import '../services/generation_strategy_service.dart';
-import '../services/chapter_generation_service.dart';
-import '../utils/logger.dart';
-import '../utils/constants.dart';
-import '../widgets/study_chapter_card.dart';
-import '../widgets/authenticated_image.dart';
 import '../screens/lesson_view_screen.dart';
 import '../screens/mcq_quiz_screen.dart';
+import '../services/api_service.dart';
+import '../services/chapter_generation_service.dart';
+import '../services/generation_strategy_service.dart';
+import '../services/progress_service.dart';
+import '../utils/constants.dart';
+import '../utils/logger.dart';
+import '../widgets/authenticated_image.dart';
+import '../widgets/study_chapter_card.dart';
 
 class CourseDetailsScreen extends StatefulWidget {
   final String courseId;
@@ -192,12 +192,12 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
       );
 
       if (nextChapter != null) {
-        final shouldGenerate = await _generationService
-            .showGenerationSuggestion(
-              context: context,
-              chapterName: nextChapter.title,
-              currentActivity: 'study the current chapter',
-            );
+        final shouldGenerate =
+            await _generationService.showGenerationSuggestion(
+          context: context,
+          chapterName: nextChapter.title,
+          currentActivity: 'study the current chapter',
+        );
 
         if (shouldGenerate) {
           _startChapterGeneration(nextChapterId, nextChapter.title);
@@ -273,10 +273,9 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
           'hasContentToStudy': recommendation.hasContentToStudy,
           'hasSuggestions': recommendation.hasSuggestions,
           'nextToGenerate': recommendation.nextToGenerate,
-          'backgroundGenerations':
-              _generationService
-                  .getBackgroundGenerations(widget.courseId)
-                  .length,
+          'backgroundGenerations': _generationService
+              .getBackgroundGenerations(widget.courseId)
+              .length,
         },
       );
     } catch (e) {
@@ -381,21 +380,25 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
         }
       } else {
         // No lessons available - show message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('No lessons available in ${section.title}'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('No lessons available in ${section.title}'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
       }
     } catch (e) {
       Logger.e(_tag, 'Error loading course for chapter navigation', error: e);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to load course data'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to load course data'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -405,14 +408,13 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder:
-            (context) => LessonViewScreen(
-              courseId: widget.courseId,
-              chapterId: chapterId,
-              lessonId: lesson.id,
-              lessonTitle: lesson.title,
-              lesson: lesson,
-            ),
+        builder: (context) => LessonViewScreen(
+          courseId: widget.courseId,
+          chapterId: chapterId,
+          lessonId: lesson.id,
+          lessonTitle: lesson.title,
+          lesson: lesson,
+        ),
       ),
     ).then((result) async {
       // Refresh progress when returning from lesson
@@ -433,218 +435,212 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder:
-          (context) => DraggableScrollableSheet(
-            initialChildSize: 0.7,
-            minChildSize: 0.5,
-            maxChildSize: 0.9,
-            expand: false,
-            builder: (context, scrollController) {
-              final theme = Theme.of(context);
-              final chapterProgress =
-                  _userProgress?.chapterProgress[section.id];
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) {
+          final theme = Theme.of(context);
+          final chapterProgress = _userProgress?.chapterProgress[section.id];
 
-              // Get chapter status to check if MCQs are available
-              final chapterStatus = course.getChapterStatus(section.id);
-              final hasMcqs = chapterStatus?.hasMcqs ?? false;
+          // Get chapter status to check if MCQs are available
+          final chapterStatus = course.getChapterStatus(section.id);
+          final hasMcqs = chapterStatus?.hasMcqs ?? false;
 
-              // Create mixed list of lessons and quizzes
-              final List<Map<String, dynamic>> studyItems = [];
+          // Create mixed list of lessons and quizzes
+          final List<Map<String, dynamic>> studyItems = [];
 
-              for (int i = 0; i < section.lessons.length; i++) {
-                final lesson = section.lessons[i];
+          for (int i = 0; i < section.lessons.length; i++) {
+            final lesson = section.lessons[i];
 
-                // Add lesson
-                studyItems.add({
-                  'type': 'lesson',
-                  'lesson': lesson,
-                  'index': i + 1,
-                });
+            // Add lesson
+            studyItems.add({
+              'type': 'lesson',
+              'lesson': lesson,
+              'index': i + 1,
+            });
 
-                // Add corresponding quiz if the chapter has MCQs available
-                // MCQs can be generated independently of lesson content
-                if (hasMcqs) {
-                  final attempts =
-                      chapterProgress?.quizAttempts[lesson.id] ?? [];
-                  final bestAttempt =
-                      attempts.isNotEmpty
-                          ? attempts.reduce(
-                            (a, b) =>
-                                a.scorePercentage > b.scorePercentage ? a : b,
-                          )
-                          : null;
+            // Add corresponding quiz if the chapter has MCQs available
+            // MCQs can be generated independently of lesson content
+            if (hasMcqs) {
+              final attempts = chapterProgress?.quizAttempts[lesson.id] ?? [];
+              final bestAttempt = attempts.isNotEmpty
+                  ? attempts.reduce(
+                      (a, b) => a.scorePercentage > b.scorePercentage ? a : b,
+                    )
+                  : null;
 
-                  studyItems.add({
-                    'type': 'quiz',
-                    'lesson': lesson,
-                    'index': i + 1,
-                    'bestAttempt': bestAttempt,
-                  });
-                } else {
-                  // Quiz not available for this lesson
-                }
-              }
+              studyItems.add({
+                'type': 'quiz',
+                'lesson': lesson,
+                'index': i + 1,
+                'bestAttempt': bestAttempt,
+              });
+            } else {
+              // Quiz not available for this lesson
+            }
+          }
 
-              // Find first uncompleted lesson for auto-scroll
-              int firstUncompletedIndex = -1;
-              for (int i = 0; i < studyItems.length; i++) {
-                final item = studyItems[i];
-                if (item['type'] == 'lesson') {
-                  final lesson = item['lesson'] as Lesson;
-                  final isCompleted =
-                      chapterProgress?.completedLessons.contains(lesson.id) ??
+          // Find first uncompleted lesson for auto-scroll
+          int firstUncompletedIndex = -1;
+          for (int i = 0; i < studyItems.length; i++) {
+            final item = studyItems[i];
+            if (item['type'] == 'lesson') {
+              final lesson = item['lesson'] as Lesson;
+              final isCompleted =
+                  chapterProgress?.completedLessons.contains(lesson.id) ??
                       false;
-                  if (!isCompleted && lesson.generated) {
-                    firstUncompletedIndex = i;
-                    break;
-                  }
-                }
+              if (!isCompleted && lesson.generated) {
+                firstUncompletedIndex = i;
+                break;
               }
+            }
+          }
 
-              // Auto-scroll to first uncompleted lesson after sheet is built
-              if (firstUncompletedIndex >= 0) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (scrollController.hasClients) {
-                    final itemHeight = 100.0; // Approximate height of each item
-                    final scrollOffset = firstUncompletedIndex * itemHeight;
-                    scrollController.animateTo(
-                      scrollOffset,
-                      duration: const Duration(milliseconds: 500),
-                      curve: Curves.easeInOut,
-                    );
-                  }
-                });
+          // Auto-scroll to first uncompleted lesson after sheet is built
+          if (firstUncompletedIndex >= 0) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (scrollController.hasClients) {
+                final itemHeight = 100.0; // Approximate height of each item
+                final scrollOffset = firstUncompletedIndex * itemHeight;
+                scrollController.animateTo(
+                  scrollOffset,
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeInOut,
+                );
               }
+            });
+          }
 
-              return Container(
-                decoration: BoxDecoration(
-                  color: theme.scaffoldBackgroundColor,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
+          return Container(
+            decoration: BoxDecoration(
+              color: theme.scaffoldBackgroundColor,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
+            ),
+            child: Column(
+              children: [
+                // Handle bar
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Container(
+                    height: 4,
+                    width: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                   ),
                 ),
-                child: Column(
-                  children: [
-                    // Handle bar
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Container(
-                        height: 4,
-                        width: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ),
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                // Header
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.school,
-                                color: theme.colorScheme.primary,
-                                size: 24,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  section.title,
-                                  style: theme.textTheme.headlineSmall
-                                      ?.copyWith(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
+                          Icon(
+                            Icons.school,
+                            color: theme.colorScheme.primary,
+                            size: 24,
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '${section.lessons.length} lessons${hasMcqs ? ' • Interactive quizzes available' : ''}${section.time.isNotEmpty ? ' • ~${section.time}' : ''}',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurface.withAlpha(153),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              section.title,
+                              style: theme.textTheme.headlineSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    // Study items list
-                    Expanded(
-                      child:
-                          studyItems.isNotEmpty
-                              ? ListView.builder(
-                                controller: scrollController,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                itemCount: studyItems.length,
-                                itemBuilder: (context, index) {
-                                  final item = studyItems[index];
-                                  final isLesson = item['type'] == 'lesson';
-                                  final lesson = item['lesson'] as Lesson;
-                                  final itemIndex = item['index'] as int;
-
-                                  if (isLesson) {
-                                    return _buildLessonItem(
-                                      lesson,
-                                      itemIndex,
-                                      section,
-                                      theme,
-                                      chapterProgress?.completedLessons
-                                              .contains(lesson.id) ??
-                                          false,
-                                    );
-                                  } else {
-                                    final bestAttempt =
-                                        item['bestAttempt'] as QuizAttempt?;
-                                    return _buildQuizItem(
-                                      lesson,
-                                      itemIndex,
-                                      section,
-                                      theme,
-                                      bestAttempt,
-                                    );
-                                  }
-                                },
-                              )
-                              : Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(32),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.school_outlined,
-                                        size: 64,
-                                        color: Colors.grey[400],
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'No Content Available',
-                                        style: theme.textTheme.titleLarge
-                                            ?.copyWith(color: Colors.grey[600]),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Generate content to start studying',
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(color: Colors.grey[500]),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                    ),
-                    // Bottom padding for safe area
-                    const SizedBox(height: 16),
-                  ],
+                      const SizedBox(height: 8),
+                      Text(
+                        '${section.lessons.length} lessons${hasMcqs ? ' • Interactive quizzes available' : ''}${section.time.isNotEmpty ? ' • ~${section.time}' : ''}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurface.withAlpha(153),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              );
-            },
-          ),
+                // Study items list
+                Expanded(
+                  child: studyItems.isNotEmpty
+                      ? ListView.builder(
+                          controller: scrollController,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                          ),
+                          itemCount: studyItems.length,
+                          itemBuilder: (context, index) {
+                            final item = studyItems[index];
+                            final isLesson = item['type'] == 'lesson';
+                            final lesson = item['lesson'] as Lesson;
+                            final itemIndex = item['index'] as int;
+
+                            if (isLesson) {
+                              return _buildLessonItem(
+                                lesson,
+                                itemIndex,
+                                section,
+                                theme,
+                                chapterProgress?.completedLessons
+                                        .contains(lesson.id) ??
+                                    false,
+                              );
+                            } else {
+                              final bestAttempt =
+                                  item['bestAttempt'] as QuizAttempt?;
+                              return _buildQuizItem(
+                                lesson,
+                                itemIndex,
+                                section,
+                                theme,
+                                bestAttempt,
+                              );
+                            }
+                          },
+                        )
+                      : Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.school_outlined,
+                                  size: 64,
+                                  color: Colors.grey[400],
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No Content Available',
+                                  style: theme.textTheme.titleLarge
+                                      ?.copyWith(color: Colors.grey[600]),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Generate content to start studying',
+                                  style: theme.textTheme.bodyMedium
+                                      ?.copyWith(color: Colors.grey[500]),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                ),
+                // Bottom padding for safe area
+                const SizedBox(height: 16),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -656,10 +652,9 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
     bool isCompleted,
   ) {
     // Use clear color differentiation - more visible for completed items
-    final cardColor =
-        isCompleted
-            ? Colors.grey.withOpacity(0.2)
-            : theme.colorScheme.primary.withOpacity(0.1);
+    final cardColor = isCompleted
+        ? Colors.grey.withOpacity(0.2)
+        : theme.colorScheme.primary.withOpacity(0.1);
     final borderColor =
         isCompleted ? Colors.grey.shade600 : theme.colorScheme.primary;
     final textColor =
@@ -695,21 +690,19 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
                     shape: BoxShape.circle,
                   ),
                   child: Center(
-                    child:
-                        isCompleted
-                            ? const Icon(
-                              Icons.check_rounded,
+                    child: isCompleted
+                        ? const Icon(
+                            Icons.check_rounded,
+                            color: Colors.white,
+                            size: 28,
+                          )
+                        : Text(
+                            '$index',
+                            style: theme.textTheme.titleMedium?.copyWith(
                               color: Colors.white,
-                              size: 28,
-                            )
-                            : Text(
-                              '$index',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 20,
-                              ),
+                              fontWeight: FontWeight.bold,
                             ),
+                          ),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -723,7 +716,6 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
                         lesson.title,
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
-                          fontSize: 16,
                           color: textColor,
                         ),
                       ),
@@ -733,7 +725,6 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: textColor.withOpacity(0.8),
                           fontWeight: FontWeight.w500,
-                          fontSize: 14,
                         ),
                       ),
                     ],
@@ -771,10 +762,9 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
     // Use more visible colors for completed quizzes, secondary color for active ones
     final quizColor =
         hasAttempt ? Colors.grey.shade600 : theme.colorScheme.secondary;
-    final cardColor =
-        hasAttempt
-            ? Colors.grey.withOpacity(0.2)
-            : theme.colorScheme.secondary.withOpacity(0.05);
+    final cardColor = hasAttempt
+        ? Colors.grey.withOpacity(0.2)
+        : theme.colorScheme.secondary.withOpacity(0.05);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -784,10 +774,9 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
-            color:
-                hasAttempt
-                    ? Colors.grey.shade600
-                    : theme.colorScheme.secondary.withOpacity(0.3),
+            color: hasAttempt
+                ? Colors.grey.shade600
+                : theme.colorScheme.secondary.withOpacity(0.3),
             width: hasAttempt ? 1 : 2,
           ),
         ),
@@ -810,18 +799,17 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
                     shape: BoxShape.circle,
                   ),
                   child: Center(
-                    child:
-                        hasAttempt
-                            ? const Icon(
-                              Icons.check_circle,
-                              color: Colors.white,
-                              size: 28,
-                            )
-                            : const Icon(
-                              Icons.quiz_rounded,
-                              color: Colors.white,
-                              size: 28,
-                            ),
+                    child: hasAttempt
+                        ? const Icon(
+                            Icons.check_circle,
+                            color: Colors.white,
+                            size: 28,
+                          )
+                        : const Icon(
+                            Icons.quiz_rounded,
+                            color: Colors.white,
+                            size: 28,
+                          ),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -835,7 +823,6 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
                         '${lesson.title} Quiz',
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
-                          fontSize: 16,
                           color: quizColor,
                         ),
                       ),
@@ -845,7 +832,6 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: quizColor.withOpacity(0.8),
                           fontWeight: FontWeight.w500,
-                          fontSize: 14,
                         ),
                       ),
                     ],
@@ -867,10 +853,9 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
                         ),
                         child: Text(
                           '${bestAttempt.scorePercentage.round()}%',
-                          style: const TextStyle(
+                          style: theme.textTheme.labelSmall?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 12,
                           ),
                         ),
                       ),
@@ -970,15 +955,14 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder:
-            (context) => McqQuizScreen(
-              courseId: widget.courseId,
-              chapterId: chapterId,
-              lessonId: lesson.id,
-              lessonTitle: lesson.title,
-              section: section,
-              currentLessonIndex: lessonIndex >= 0 ? lessonIndex : null,
-            ),
+        builder: (context) => McqQuizScreen(
+          courseId: widget.courseId,
+          chapterId: chapterId,
+          lessonId: lesson.id,
+          lessonTitle: lesson.title,
+          section: section,
+          currentLessonIndex: lessonIndex >= 0 ? lessonIndex : null,
+        ),
       ),
     ).then((result) async {
       // Refresh progress when returning from quiz
@@ -1008,61 +992,58 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
           ),
         ],
       ),
-      body: Container(
-        color: colorScheme.surface,
-        child: RefreshIndicator(
-          onRefresh: _handleRefresh,
-          child: FutureBuilder<Course>(
-            future: _courseFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                Logger.d(_tag, 'Course details loading');
-                return const Center(child: CircularProgressIndicator());
-              } else if (snapshot.hasError) {
-                final error = snapshot.error;
-                Logger.e(
-                  _tag,
-                  'Error loading course details',
-                  error: error,
-                  stackTrace: StackTrace.current,
-                );
-                return _buildErrorView(context, error, theme);
-              } else if (!snapshot.hasData) {
-                Logger.w(
-                  _tag,
-                  'No course data found for ID: ${widget.courseId}',
-                );
-                return const Center(child: Text('Course not found'));
-              }
-
-              final course = snapshot.data!;
-
-              // Initialize progress and load recommendations only once per course
-              if (!_progressInitialized || _lastCourseId != course.courseID) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _initializeProgress(course);
-                });
-              }
-
-              if (!_recommendationsLoaded || _lastCourseId != course.courseID) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _loadStudyRecommendation(course);
-                });
-              }
-
-              Logger.i(
+      body: RefreshIndicator(
+        onRefresh: _handleRefresh,
+        child: FutureBuilder<Course>(
+          future: _courseFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              Logger.d(_tag, 'Course details loading');
+              return const Center(child: CircularProgressIndicator());
+            } else if (snapshot.hasError) {
+              final error = snapshot.error;
+              Logger.e(
                 _tag,
-                'Course details loaded successfully',
-                data: {
-                  'id': course.courseID,
-                  'title': course.title,
-                  'sections': course.sections?.length ?? 0,
-                  'lessons': course.lessons?.length ?? 0,
-                },
+                'Error loading course details',
+                error: error,
+                stackTrace: StackTrace.current,
               );
-              return _buildCourseView(context, course, theme);
-            },
-          ),
+              return _buildErrorView(context, error, theme);
+            } else if (!snapshot.hasData) {
+              Logger.w(
+                _tag,
+                'No course data found for ID: ${widget.courseId}',
+              );
+              return const Center(child: Text('Course not found'));
+            }
+
+            final course = snapshot.data!;
+
+            // Initialize progress and load recommendations only once per course
+            if (!_progressInitialized || _lastCourseId != course.courseID) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _initializeProgress(course);
+              });
+            }
+
+            if (!_recommendationsLoaded || _lastCourseId != course.courseID) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _loadStudyRecommendation(course);
+              });
+            }
+
+            Logger.i(
+              _tag,
+              'Course details loaded successfully',
+              data: {
+                'id': course.courseID,
+                'title': course.title,
+                'sections': course.sections?.length ?? 0,
+                'lessons': course.lessons?.length ?? 0,
+              },
+            );
+            return _buildCourseView(context, course, theme);
+          },
         ),
       ),
     );
@@ -1259,10 +1240,9 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
       children: [
         AnimatedCrossFade(
           duration: const Duration(milliseconds: 300),
-          crossFadeState:
-              _isDescriptionExpanded
-                  ? CrossFadeState.showSecond
-                  : CrossFadeState.showFirst,
+          crossFadeState: _isDescriptionExpanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
           firstChild: Text(
             description,
             style: theme.textTheme.bodyLarge?.copyWith(
@@ -1435,15 +1415,13 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color:
-            isPrimary
-                ? theme.colorScheme.primary.withOpacity(0.1)
-                : theme.colorScheme.onSurface.withOpacity(0.05),
+        color: isPrimary
+            ? theme.colorScheme.primary.withOpacity(0.1)
+            : theme.colorScheme.onSurface.withOpacity(0.05),
         borderRadius: BorderRadius.circular(20),
-        border:
-            isPrimary
-                ? Border.all(color: theme.colorScheme.primary.withOpacity(0.3))
-                : null,
+        border: isPrimary
+            ? Border.all(color: theme.colorScheme.primary.withOpacity(0.3))
+            : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1451,19 +1429,17 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
           Icon(
             icon,
             size: 16,
-            color:
-                isPrimary
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface.withOpacity(0.7),
+            color: isPrimary
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface.withOpacity(0.7),
           ),
           const SizedBox(width: 6),
           Text(
             label,
             style: theme.textTheme.bodySmall?.copyWith(
-              color:
-                  isPrimary
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurface.withOpacity(0.8),
+              color: isPrimary
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurface.withOpacity(0.8),
               fontWeight: isPrimary ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
@@ -1742,8 +1718,8 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
           progress: chapterProgress,
           status: chapterStatus,
           onTap: () => _navigateToChapterLessons(section),
-          onGenerateContent:
-              () => _startChapterGeneration(section.id, section.title),
+          onGenerateContent: () =>
+              _startChapterGeneration(section.id, section.title),
         );
       },
     );

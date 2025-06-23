@@ -381,10 +381,9 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                           child: ElevatedButton.icon(
                             onPressed: _isLoading ? null : _generateCoursePlan,
                             icon: const Icon(Icons.auto_awesome),
-                            label: const Text(
+                            label: Text(
                               'Generate My Course',
-                              style: TextStyle(
-                                fontSize: 16,
+                              style: theme.textTheme.labelLarge?.copyWith(
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -559,7 +558,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                       },
               backgroundColor: colorScheme.surface,
               side: BorderSide(color: colorScheme.primary.withOpacity(0.3)),
-              labelStyle: TextStyle(
+              labelStyle: theme.textTheme.labelMedium?.copyWith(
                 color: colorScheme.primary,
                 fontWeight: FontWeight.w500,
               ),
@@ -586,7 +585,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
                       },
               backgroundColor: colorScheme.surface,
               side: BorderSide(color: colorScheme.primary.withOpacity(0.3)),
-              labelStyle: TextStyle(
+              labelStyle: theme.textTheme.labelMedium?.copyWith(
                 color: colorScheme.primary,
                 fontWeight: FontWeight.w500,
               ),

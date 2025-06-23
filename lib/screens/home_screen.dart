@@ -11,6 +11,7 @@ import '../services/starred_courses_service.dart';
 import '../utils/logger.dart';
 import '../utils/theme_manager.dart';
 import '../widgets/course_card.dart';
+import '../widgets/theme_selector.dart';
 
 class HomeScreen extends StatefulWidget {
   final Future<List<Course>>? preloadedCourses;
@@ -198,69 +199,206 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
 
     try {
-      await _loadCourses();
+      final courses = await _loadAndSortCourses();
+      setState(() {
+        _coursesFuture = Future.value(courses);
+        _currentCourses = List.from(courses);
+        _isLoading = false;
+      });
       Logger.i(_tag, 'Course list refreshed successfully');
     } catch (e) {
-      Logger.e(
-        _tag,
-        'Error refreshing courses',
-        error: e,
-        stackTrace: StackTrace.current,
-      );
-    } finally {
       setState(() {
         _isLoading = false;
       });
+      Logger.e(_tag, 'Error refreshing courses', error: e);
+      rethrow;
     }
   }
 
-  Future<void> _handleLogout() async {
-    Logger.i(_tag, 'User requested logout');
-
-    // Show confirmation dialog
-    final shouldLogout = await showDialog<bool>(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Logout'),
-            content: const Text('Are you sure you want to logout?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Logout'),
-              ),
-            ],
+  void _handleLogout() async {
+    Logger.i(_tag, 'User initiated logout');
+    try {
+      await _authService.logout();
+      if (mounted) {
+        Logger.i(_tag, 'Logout successful, navigating to login screen');
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      Logger.e(_tag, 'Error during logout', error: e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error during logout: ${e.toString()}'),
+            backgroundColor: Colors.red,
           ),
-    );
-
-    if (shouldLogout == true) {
-      try {
-        await _authService.logout();
-        Logger.i(_tag, 'User logged out successfully');
-
-        if (mounted) {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
-            (route) => false,
-          );
-        }
-      } catch (e) {
-        Logger.e(_tag, 'Error during logout', error: e);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error during logout. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        );
       }
     }
+  }
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return 'Good Morning';
+    } else if (hour < 17) {
+      return 'Good Afternoon';
+    } else {
+      return 'Good Evening';
+    }
+  }
+
+  Widget _buildModernAppBar() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final greeting = _getGreeting();
+    
+    // Create a differentiated app bar color based on theme brightness
+    final appBarColor = theme.brightness == Brightness.light
+        ? Color.alphaBlend(colorScheme.primary.withOpacity(0.18), colorScheme.surface)
+        : Color.alphaBlend(colorScheme.primary.withOpacity(0.25), colorScheme.surface);
+    
+    return SliverAppBar(
+      //expandedHeight: 80,
+      floating: true,
+      //pinned: true,
+      snap: true,
+      elevation: 10,
+      scrolledUnderElevation: 0,
+      backgroundColor: appBarColor,
+      surfaceTintColor: Colors.transparent,
+      // This title shows when collapsed
+      title: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  colorScheme.primary,
+                  colorScheme.secondary,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.school_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'Vedira',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
+          ),
+        ],
+      ),
+      centerTitle: false,
+      actions: [
+        const ThemeSelector(),
+        const SizedBox(width: 8),
+        PopupMenuButton<String>(
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: colorScheme.outline.withOpacity(0.2),
+              ),
+            ),
+            child: Icon(
+              Icons.more_vert,
+              color: colorScheme.onSurface,
+              size: 20,
+            ),
+          ),
+          offset: const Offset(0, 50),
+          elevation: 8,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          onSelected: (value) {
+            if (value == 'logout') {
+              _handleLogout();
+            } else if (value == 'privacy') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PrivacyPolicyScreen(),
+                ),
+              );
+            }
+          },
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              value: 'privacy',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.privacy_tip_outlined,
+                    color: colorScheme.primary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Privacy Policy',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            PopupMenuItem(
+              value: 'logout',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.logout_rounded,
+                    color: theme.colorScheme.error,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Logout',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(width: 16),
+      ],
+              flexibleSpace: FlexibleSpaceBar(
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                colorScheme.primaryContainer.withOpacity(0.1),
+                appBarColor,
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -268,169 +406,142 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final themeManager = Provider.of<ThemeManager>(context);
     final isDarkMode = themeManager.isDarkMode;
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    // Use the same color as app bar for the body background
+    final bodyBackgroundColor = theme.brightness == Brightness.light
+        ? Color.alphaBlend(colorScheme.primary.withOpacity(0.08), colorScheme.surface)
+        : Color.alphaBlend(colorScheme.primary.withOpacity(0.12), colorScheme.surface);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Vedira'),
-        backgroundColor: theme.colorScheme.surface,
-        foregroundColor: theme.colorScheme.onSurface,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _refreshCourses,
-            tooltip: 'Refresh courses',
-          ),
-          IconButton(
-            icon: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
-            onPressed: () async {
-              final newMode = !isDarkMode ? 'dark' : 'light';
-              Logger.i(_tag, 'User requested theme change to $newMode mode');
-              await themeManager.toggleTheme();
-            },
-            tooltip:
-                isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'logout') {
-                _handleLogout();
-              } else if (value == 'privacy') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const PrivacyPolicyScreen(),
-                  ),
-                );
-              }
-            },
-            itemBuilder:
-                (context) => [
-                  const PopupMenuItem(
-                    value: 'privacy',
-                    child: Row(
-                      children: [
-                        Icon(Icons.privacy_tip_outlined),
-                        SizedBox(width: 8),
-                        Text('Privacy Policy'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuDivider(),
-                  const PopupMenuItem(
-                    value: 'logout',
-                    child: Row(
-                      children: [
-                        Icon(Icons.logout),
-                        SizedBox(width: 8),
-                        Text('Logout'),
-                      ],
-                    ),
-                  ),
-                ],
+      backgroundColor: bodyBackgroundColor,
+      body: CustomScrollView(
+        slivers: [
+          _buildModernAppBar(),
+          SliverPadding(
+            padding: const EdgeInsets.only(top: 16),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  return FutureBuilder<List<Course>>(
+                    future: _coursesFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting ||
+                          _isLoading) {
+                        Logger.d(_tag, 'Loading courses...');
+                        return Container(
+                          height: MediaQuery.of(context).size.height * 0.6,
+                          child: const Center(child: CircularProgressIndicator()),
+                        );
+                      } else if (snapshot.hasError) {
+                        final error = snapshot.error;
+                        Logger.e(
+                          _tag,
+                          'Error loading courses',
+                          error: error,
+                          stackTrace: StackTrace.current,
+                        );
+                        return Container(
+                          height: MediaQuery.of(context).size.height * 0.6,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.error_outline,
+                                  size: 60,
+                                  color: theme.colorScheme.error,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Error loading courses',
+                                  style: Theme.of(context).textTheme.titleLarge,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  error.toString(),
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 24),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Logger.i(
+                                      _tag,
+                                      'User trying to reload courses after error',
+                                    );
+                                    _refreshCourses();
+                                  },
+                                  child: const Text('Try Again'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        Logger.w(_tag, 'No courses available');
+                        return _buildOnboardingExperience();
+                      }
+
+                      final courses = snapshot.data!;
+                      Logger.i(_tag, 'Loaded ${courses.length} courses');
+                      
+                      // Update local state when data loads
+                      if (_currentCourses == null || _currentCourses!.length != courses.length) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          setState(() {
+                            _currentCourses = List.from(courses);
+                          });
+                        });
+                      }
+                      
+                      // Use local state if available, otherwise use snapshot data
+                      final displayCourses = _currentCourses ?? courses;
+                      
+                      if (index >= displayCourses.length) return const SizedBox.shrink();
+                      
+                      final course = displayCourses[index];
+                      final isStarred = _starredCourseIds.contains(course.courseID);
+                      
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                        margin: EdgeInsets.only(
+                          left: 16.0,
+                          right: 16.0,
+                          top: index == 0 ? 0 : 4.0, // Reduced top margin for cards
+                          bottom: 4.0, // Reduced bottom margin
+                        ),
+                        child: CourseCard(
+                          key: ValueKey(course.courseID),
+                          course: course,
+                          isStarred: isStarred,
+                          onDeleted: () {
+                            Logger.i(_tag, 'Course deleted, refreshing course list');
+                            _refreshCourses();
+                          },
+                          onStarToggle: (newStarState) {
+                            _handleStarToggle(course.courseID, newStarState);
+                          },
+                        ),
+                      );
+                    },
+                  );
+                },
+                childCount: () {
+                  // Get the course count for proper itemCount
+                  if (_currentCourses != null) {
+                    return _currentCourses!.length;
+                  }
+                  // Fallback - we'll handle this in the builder
+                  return 10; // Reasonable fallback, will be limited by null check in builder
+                }(),
+              ),
+            ),
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _refreshCourses,
-        child: FutureBuilder<List<Course>>(
-          future: _coursesFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting ||
-                _isLoading) {
-              Logger.d(_tag, 'Loading courses...');
-              return const Center(child: CircularProgressIndicator());
-            } else if (snapshot.hasError) {
-              final error = snapshot.error;
-              Logger.e(
-                _tag,
-                'Error loading courses',
-                error: error,
-                stackTrace: StackTrace.current,
-              );
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      size: 60,
-                      color: Colors.red,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Error loading courses',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      error.toString(),
-                      style: Theme.of(context).textTheme.bodyMedium,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: () {
-                        Logger.i(
-                          _tag,
-                          'User trying to reload courses after error',
-                        );
-                        _refreshCourses();
-                      },
-                      child: const Text('Try Again'),
-                    ),
-                  ],
-                ),
-              );
-            } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              Logger.w(_tag, 'No courses available');
-              return _buildOnboardingExperience();
-            }
-
-            final courses = snapshot.data!;
-            Logger.i(_tag, 'Loaded ${courses.length} courses');
-            
-            // Update local state when data loads
-            if (_currentCourses == null || _currentCourses!.length != courses.length) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                setState(() {
-                  _currentCourses = List.from(courses);
-                });
-              });
-            }
-            
-            // Use local state if available, otherwise use snapshot data
-            final displayCourses = _currentCourses ?? courses;
-            
-            return ListView.builder(
-              padding: const EdgeInsets.all(16.0),
-              itemCount: displayCourses.length,
-              itemBuilder: (context, index) {
-                final course = displayCourses[index];
-                final isStarred = _starredCourseIds.contains(course.courseID);
-                
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  child: CourseCard(
-                    key: ValueKey(course.courseID), // Unique key for each card
-                    course: course,
-                    isStarred: isStarred,
-                    onDeleted: () {
-                      Logger.i(_tag, 'Course deleted, refreshing course list');
-                      _refreshCourses();
-                    },
-                    onStarToggle: (newStarState) {
-                      _handleStarToggle(course.courseID, newStarState);
-                    },
-                  ),
-                );
-              },
-            );
-          },
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Logger.i(_tag, 'User navigating to create course screen');
           Navigator.push(
@@ -438,7 +549,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             MaterialPageRoute(builder: (context) => const CreateCourseScreen()),
           );
         },
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('New Course'),
       ),
     );
   }
@@ -576,10 +688,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       );
                     },
                     icon: const Icon(Icons.add_circle_outline),
-                    label: const Text(
+                    label: Text(
                       'Create My First Course',
-                      style: TextStyle(
-                        fontSize: 16,
+                      style: theme.textTheme.labelLarge?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                     ),

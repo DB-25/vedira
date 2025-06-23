@@ -1,36 +1,47 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AppConstants {
   // API Constants
   static const String apiBaseUrl =
       'https://i7cicaxvzf.execute-api.us-east-1.amazonaws.com/prod';
 
-  // App Theme Colors
-  static const Color primaryColorLight = Colors.teal;
-  static const Color primaryColorDark = Color(0xFF26D7AE);
-  static const Color accentColorLight = Color(0xFF1E90FF);
-  static const Color accentColorDark = Color(0xFF42A5F5);
-  static const Color backgroundColorLight = Color(0xFFFAFAFA);
-  static const Color backgroundColorDark = Color(0xFF121212);
-  static const Color cardColorLight = Color(0xFFF5F5F5);
-  static const Color cardColorDark = Color(0xFF1E1E1E);
-  static const Color textColorLight = Color(0xFF212121);
-  static const Color textColorDark = Color(0xFFECECEC);
-  static const Color textColorSecondaryLight = Color(0xFF616161);
-  static const Color textColorSecondaryDark = Color(0xFFB0B0B0);
+  // =========================
+  // CENTRALIZED COLOR PALETTES - ACCESSIBILITY FOCUSED
+  // =========================
+  
+  // Palette 1 (Secondary) - Cool Green Theme - WCAG AA Compliant
+  static const Color palette1Primary = Color(0xFF1B5E20); // darker green for better contrast
+  static const Color palette1PrimaryLight = Color(0xFF4CAF50); // lighter variant for accents
+  static const Color palette1Secondary = Color(0xFFE91E63); // stronger pink for better contrast
+  static const Color palette1Accent = Color(0xFFD32F2F); // stronger red for alerts
+  static const Color palette1Background = Color(0xFF2E2E2E); // better contrast dark background
+  static const Color palette1Surface = Color(0xFF424242); // mid-tone for cards
+  static const Color palette1Success = Color(0xFF4CAF50); // standard green for success
+  static const Color palette1Warning = Color(0xFFFF9800); // standard orange for warnings
+  
+  // Palette 2 (Primary, Default) - Electric Blue Theme - WCAG AA Compliant
+  static const Color palette2Primary = Color(0xFF1976D2); // darker blue for better contrast
+  static const Color palette2PrimaryLight = Color(0xFF2196F3); // lighter variant for accents
+  static const Color palette2Secondary = Color(0xFF424242); // proper gray instead of pure black
+  static const Color palette2Accent = Color(0xFFFF9800); // orange instead of gold for better contrast
+  static const Color palette2Danger = Color(0xFFD32F2F); // standard red for errors
+  static const Color palette2Background = Color(0xFF1E1E1E); // proper dark background
+  static const Color palette2Surface = Color(0xFF2E2E2E); // mid-tone for cards
+  static const Color palette2Highlight = Color(0xFFFFC107); // amber instead of yellow for better contrast
 
-  // Text Styles
-  static const TextStyle headingStyle = TextStyle(
+  // Text Styles - Using Google Fonts
+  static final TextStyle headingStyle = GoogleFonts.inter(
     fontSize: 24,
     fontWeight: FontWeight.bold,
   );
 
-  static const TextStyle subheadingStyle = TextStyle(
+  static final TextStyle subheadingStyle = GoogleFonts.inter(
     fontSize: 20,
     fontWeight: FontWeight.w600,
   );
 
-  static const TextStyle bodyStyle = TextStyle(fontSize: 16);
+  static final TextStyle bodyStyle = GoogleFonts.poppins(fontSize: 16);
 
   // Animation Durations
   static const Duration shortAnimationDuration = Duration(milliseconds: 200);
@@ -95,8 +106,6 @@ class AppConstants {
       'Chapter generation failed. Please try again.';
 
   // Reading Progress Indicator
-  static const Color progressBarActiveColor = Colors.blue;
-  static const Color progressBarBackgroundColor = Colors.grey;
   static const double progressBarHeight = 4.0;
   static const double scrollIndicatorWidth = 6.0;
   static const double scrollIndicatorThumbHeight = 20.0;

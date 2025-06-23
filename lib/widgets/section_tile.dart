@@ -38,7 +38,6 @@ class SectionTile extends StatelessWidget {
                     displayTitle,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      fontSize: 18,
                     ),
                     softWrap: true,
                   ),
@@ -81,7 +80,6 @@ class SectionTile extends StatelessWidget {
                 'Last updated: ${_formatDate(chapterStatus!.lastUpdated)}',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurface.withOpacity(0.6),
-                  fontSize: 10,
                 ),
               ),
             ),

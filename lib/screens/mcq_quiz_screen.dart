@@ -505,7 +505,7 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
                 ),
                 label: Text(
                   'Back to Chapter Overview',
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: Theme.of(
                       context,
                     ).colorScheme.onSurface.withOpacity(0.7),
@@ -741,13 +741,12 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
                   radius: 12,
                   child: Text(
                     String.fromCharCode(65 + optionIndex), // A, B, C, D
-                    style: TextStyle(
+                    style: theme.textTheme.labelSmall?.copyWith(
                       color:
                           isSelected
                               ? Colors.white
                               : theme.colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.bold,
-                      fontSize: 12,
                     ),
                   ),
                 ),
@@ -917,15 +916,13 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
                       children: [
                         Text(
                           'Retake Quiz',
-                          style: const TextStyle(
-                            fontSize: 16,
+                          style: theme.textTheme.labelLarge?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         Text(
                           'Practice makes perfect!',
-                          style: TextStyle(
-                            fontSize: 12,
+                          style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSecondary.withOpacity(
                               0.8,
                             ),
@@ -957,8 +954,7 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
                       ),
                       label: Text(
                         'Continue to Next Lesson',
-                        style: TextStyle(
-                          fontSize: 16,
+                        style: theme.textTheme.labelLarge?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: theme.colorScheme.primary,
                         ),
@@ -979,8 +975,7 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
                     ),
                     label: Text(
                       'Back to Chapter Overview',
-                      style: TextStyle(
-                        fontSize: 14,
+                      style: theme.textTheme.labelMedium?.copyWith(
                         color: theme.colorScheme.onSurface.withOpacity(0.7),
                       ),
                     ),

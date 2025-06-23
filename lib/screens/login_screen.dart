@@ -277,13 +277,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   // App logo and title
                   Icon(Icons.school, size: 80, color: colorScheme.primary),
                   const SizedBox(height: AppConstants.defaultPadding),
-                  Text(
+                  Center(child: Text(
                     'Vedira',
                     style: theme.textTheme.headlineLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: theme.colorScheme.primary,
                     ),
-                  ),
+                  ),),
                   const SizedBox(height: AppConstants.largePadding * 2),
 
                   // Title
@@ -635,9 +635,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               )
                               : Text(
                                 _isSignUpMode ? 'Sign Up' : 'Sign In',
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w600,
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  color: colorScheme.onPrimary,
                                   letterSpacing: 0.5,
                                 ),
                               ),
@@ -667,9 +666,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 },
                         child: Text(
                           _isSignUpMode ? 'Sign In' : 'Sign Up',
-                          style: TextStyle(
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
                             color: colorScheme.primary,
-                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -723,10 +721,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             child: Text(
                               'Privacy Policy',
-                              style: TextStyle(
+                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
                                 color: colorScheme.primary,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
                               ),
                             ),
                           ),

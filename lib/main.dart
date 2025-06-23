@@ -53,8 +53,8 @@ class VediraApp extends StatelessWidget {
       child: MaterialApp(
         navigatorKey: navigatorKey,
         title: 'Vedira',
-        theme: vediraLightTheme,
-        darkTheme: vediraDarkTheme,
+        theme: themeManager.lightTheme,
+        darkTheme: themeManager.darkTheme,
         themeMode: themeManager.themeMode,
         home: const SplashScreen(),
         debugShowCheckedModeBanner: false,
@@ -127,18 +127,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
   }
 }
 
-
-
 // Global function to show snackbar from anywhere in the app
 void showGlobalSnackBar(String message, {bool isError = false}) {
   final navigator = VediraApp.navigatorKey.currentState;
   if (navigator != null) {
     final context = navigator.overlay?.context;
     if (context != null) {
+      final theme = Theme.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
-          backgroundColor: isError ? Colors.red : null,
+          backgroundColor: isError ? theme.colorScheme.error : null,
           duration: const Duration(seconds: 3),
         ),
       );

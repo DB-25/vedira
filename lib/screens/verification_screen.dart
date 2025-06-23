@@ -122,7 +122,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
         ),
         title: Text(
           'Verify Email',
-          style: TextStyle(color: colorScheme.onSurface),
+          style: theme.textTheme.titleLarge?.copyWith(
+            color: colorScheme.onSurface,
+          ),
         ),
       ),
       body: SafeArea(
@@ -171,10 +173,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     maxLength: 6,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     validator: _validateCode,
-                    style: const TextStyle(
-                      fontSize: 24,
+                    style: theme.textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       letterSpacing: 8,
+                      color: colorScheme.onSurface,
                     ),
                     decoration: InputDecoration(
                       labelText: 'Enter 6-digit code',
@@ -212,10 +214,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
                                   color: colorScheme.onPrimary,
                                 ),
                               )
-                              : const Text(
+                              : Text(
                                 'Verify Email',
-                                style: TextStyle(
-                                  fontSize: 16,
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  color: colorScheme.onPrimary,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -251,7 +253,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                                 )
                                 : Text(
                                   'Resend Code',
-                                  style: TextStyle(
+                                  style: theme.textTheme.labelLarge?.copyWith(
                                     color: colorScheme.primary,
                                     fontWeight: FontWeight.w600,
                                   ),

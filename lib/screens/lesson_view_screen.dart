@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:markdown_widget/markdown_widget.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../controllers/lesson_controller.dart';
 import '../models/lesson.dart';
@@ -340,16 +341,14 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
                       children: [
                         Text(
                           bestAttempt != null ? 'Retake Quiz' : 'Take Quiz',
-                          style: const TextStyle(
-                            fontSize: 16,
+                          style: theme.textTheme.labelLarge?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         if (bestAttempt != null)
                           Text(
                             'Best score: ${bestAttempt.score}/${bestAttempt.totalQuestions} (${bestAttempt.scorePercentage.round()}%)',
-                            style: TextStyle(
-                              fontSize: 12,
+                            style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSecondary.withOpacity(
                                 0.8,
                               ),
@@ -358,8 +357,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
                         else
                           Text(
                             'Test your knowledge of this lesson',
-                            style: TextStyle(
-                              fontSize: 12,
+                            style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSecondary.withOpacity(
                                 0.8,
                               ),
@@ -390,8 +388,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
                     ),
                     label: Text(
                       'Continue to Next Lesson',
-                      style: TextStyle(
-                        fontSize: 16,
+                      style: theme.textTheme.labelLarge?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: theme.colorScheme.primary,
                       ),
@@ -411,8 +408,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
                     ),
                     label: Text(
                       'Back to Chapter Overview',
-                      style: TextStyle(
-                        fontSize: 14,
+                      style: theme.textTheme.labelMedium?.copyWith(
                         color: theme.colorScheme.onSurface.withOpacity(0.7),
                       ),
                     ),
@@ -699,12 +695,12 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
                 builder: (context) {
                   // Only show TOC if we have content
                   if (_currentSectionContent.isEmpty) {
-                    return const Center(
+                    return Center(
                       child: Padding(
-                        padding: EdgeInsets.all(10),
+                        padding: const EdgeInsets.all(10),
                         child: Text(
                           'No content available',
-                          style: TextStyle(
+                          style: theme.textTheme.bodyMedium?.copyWith(
                             fontStyle: FontStyle.italic,
                             color: Colors.grey,
                           ),
@@ -723,14 +719,12 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
                         shrinkWrap: true,
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         // Basic styling for TOC items
-                        tocTextStyle: TextStyle(
-                          fontSize: 14,
+                        tocTextStyle: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.onSurface,
                           height: 1.5,
                         ),
                         // Styling for active/current TOC item
-                        currentTocTextStyle: TextStyle(
-                          fontSize: 14,
+                        currentTocTextStyle: theme.textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: theme.colorScheme.primary,
                           height: 1.5,
@@ -754,7 +748,9 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
                             Text(
                               'Unable to display table of contents.',
                               textAlign: TextAlign.center,
-                              style: TextStyle(color: theme.colorScheme.error),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.error,
+                              ),
                             ),
                           ],
                         ),
@@ -772,6 +768,8 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
 
   // Build the main body content
   Widget _buildBody(bool isDarkMode) {
+    final theme = Theme.of(context);
+    
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -783,9 +781,9 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
           children: [
             const Icon(Icons.error_outline, size: 48, color: Colors.red),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Failed to load lesson content',
-              style: TextStyle(fontSize: 16),
+              style: theme.textTheme.bodyLarge,
             ),
             const SizedBox(height: 24),
             ElevatedButton(
@@ -824,7 +822,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
                   child: SingleChildScrollView(
                     controller: _scrollController,
                     physics: const ClampingScrollPhysics(),
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     child: _buildMarkdownContent(isDarkMode),
                   ),
                 ),
@@ -962,6 +960,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
 
   // Build the markdown content widget
   Widget _buildMarkdownContent(bool isDarkMode) {
+    final theme = Theme.of(context);
     // Create the markdown widget with custom code wrapper
     return Builder(
       builder: (context) {
@@ -983,31 +982,27 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
           // Prepare config list - conditionally include PreConfig
           final List<WidgetConfig> configs = [
             // Base text style with our selected font size
-            PConfig(textStyle: TextStyle(fontSize: baseFontSize)),
-            // Apply proportional font sizes to headings
+            PConfig(textStyle: theme.textTheme.bodyMedium?.copyWith(fontSize: baseFontSize) ?? GoogleFonts.poppins(fontSize: baseFontSize)),
+            // Apply proportional font sizes to headings using theme styles
             H1Config(
-              style: TextStyle(
+              style: theme.textTheme.headlineLarge?.copyWith(
                 fontSize: baseFontSize * 1.8,
-                fontWeight: FontWeight.bold,
-              ),
+              ) ?? GoogleFonts.inter(fontSize: baseFontSize * 1.8, fontWeight: FontWeight.bold),
             ),
             H2Config(
-              style: TextStyle(
+              style: theme.textTheme.headlineMedium?.copyWith(
                 fontSize: baseFontSize * 1.5,
-                fontWeight: FontWeight.bold,
-              ),
+              ) ?? GoogleFonts.inter(fontSize: baseFontSize * 1.5, fontWeight: FontWeight.bold),
             ),
             H3Config(
-              style: TextStyle(
+              style: theme.textTheme.headlineSmall?.copyWith(
                 fontSize: baseFontSize * 1.2,
-                fontWeight: FontWeight.bold,
-              ),
+              ) ?? GoogleFonts.inter(fontSize: baseFontSize * 1.2, fontWeight: FontWeight.bold),
             ),
             // Style for inline code elements (like variables)
             CodeConfig(
-              style: TextStyle(
+              style: GoogleFonts.jetBrainsMono(
                 fontSize: baseFontSize,
-                fontFamily: 'monospace',
                 letterSpacing: 0.3,
                 color:
                     isDarkMode
@@ -1030,9 +1025,8 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
             configs.add(
               // Code block configuration with safe language handling
               PreConfig(
-                textStyle: TextStyle(
+                textStyle: GoogleFonts.jetBrainsMono(
                   fontSize: baseFontSize * 0.9,
-                  fontFamily: 'monospace',
                 ),
                 wrapper: (child, text, language) {
                   try {
@@ -1112,9 +1106,11 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
                 size: 48,
               ),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Error rendering content',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ) ?? GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18),
               ),
               const SizedBox(height: 8),
               Text('Showing raw content instead:\n\n$_currentSectionContent'),
@@ -1192,7 +1188,9 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
               onPressed: () => Navigator.pop(context),
               child: Text(
                 'Close',
-                style: TextStyle(color: theme.colorScheme.primary),
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
               ),
             ),
           ],
@@ -1232,7 +1230,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
           children: [
             Text(
               label,
-              style: TextStyle(
+              style: theme.textTheme.bodyMedium?.copyWith(
                 fontSize:
                     size == FontSize.small
                         ? 14

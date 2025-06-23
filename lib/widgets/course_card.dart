@@ -67,6 +67,7 @@ class _CourseCardState extends State<CourseCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     if (widget.course == null) {
       return const SizedBox.shrink();
@@ -77,10 +78,33 @@ class _CourseCardState extends State<CourseCard> {
       Logger.e(_tag, 'Empty courseID detected in CourseCard: ${widget.course!.title}');
     }
 
-    return Card(
+    // Create glass-morphism effect for better integration
+    final cardColor = theme.brightness == Brightness.light
+        ? Color.alphaBlend(colorScheme.surface.withOpacity(0.85), Colors.white)
+        : Color.alphaBlend(colorScheme.surface.withOpacity(0.90), colorScheme.surface);
+
+    return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 2,
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: colorScheme.outline.withOpacity(0.15),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: colorScheme.primary.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
@@ -161,7 +185,6 @@ class _CourseCardState extends State<CourseCard> {
                                     style: theme.textTheme.bodySmall?.copyWith(
                                       color: theme.colorScheme.primary,
                                       fontWeight: FontWeight.w600,
-                                      fontSize: 11,
                                     ),
                                   ),
                                 ],
@@ -186,63 +209,95 @@ class _CourseCardState extends State<CourseCard> {
             ),
           ),
           
-          // Star button overlay (top-left)
+          // Star button overlay (top-right) - Follows UI conventions
           Positioned(
-            top: 8,
-            left: 8,
+            top: 12,
+            right: 12,
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6),
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: _isStarLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : Icon(
-                        _isStarred ? Icons.star : Icons.star_border,
-                        color: _isStarred ? Colors.orange : Colors.white,
-                        size: 20,
-                      ),
-                onPressed: _isStarLoading ? null : _toggleStar,
-                tooltip: _isStarred ? 'Unstar Course' : 'Star Course',
-                constraints: const BoxConstraints(
-                  minWidth: 36,
-                  minHeight: 36,
+                color: _isStarred 
+                    ? colorScheme.tertiary.withOpacity(0.95)
+                    : colorScheme.surface.withOpacity(0.95),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _isStarred 
+                      ? colorScheme.tertiary.withOpacity(0.3)
+                      : colorScheme.outline.withOpacity(0.2),
+                  width: 1,
                 ),
-                padding: const EdgeInsets.all(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.shadow.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _isStarLoading ? null : _toggleStar,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: _isStarLoading
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                _isStarred ? colorScheme.onTertiary : colorScheme.primary,
+                              ),
+                            ),
+                          )
+                        : Icon(
+                            _isStarred ? Icons.star_rounded : Icons.star_outline_rounded,
+                            color: _isStarred 
+                                ? colorScheme.onTertiary 
+                                : colorScheme.primary,
+                            size: 16,
+                          ),
+                  ),
+                ),
               ),
             ),
           ),
           
-          // Delete button overlay (top-right)
+          // Delete button overlay (top-left) - Classic placement
           Positioned(
-            top: 8,
-            right: 8,
+            top: 12,
+            left: 12,
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6),
-                shape: BoxShape.circle,
+                color: colorScheme.surface.withOpacity(0.95),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: colorScheme.outline.withOpacity(0.2),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.shadow.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: IconButton(
-                icon: const Icon(
-                  Icons.delete_outline,
-                  color: Colors.white,
-                  size: 20,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _handleDelete(context),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Icon(
+                      Icons.delete_outline_rounded,
+                      color: colorScheme.error,
+                      size: 16,
+                    ),
+                  ),
                 ),
-                onPressed: () => _handleDelete(context),
-                tooltip: 'Delete Course',
-                constraints: const BoxConstraints(
-                  minWidth: 36,
-                  minHeight: 36,
-                ),
-                padding: const EdgeInsets.all(8),
               ),
             ),
           ),
@@ -257,69 +312,245 @@ class _CourseCardState extends State<CourseCard> {
       return;
     }
 
-    // Confirmation dialog
+    // Confirmation dialog with modern design
     final shouldDelete = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.warning_amber_outlined, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('Delete Course'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Are you sure you want to delete "${widget.course!.title}"?'),
-            const SizedBox(height: 12),
-            const Text(
-              'This action cannot be undone. All course content, lessons, and progress will be permanently deleted.',
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                color: Colors.red,
+      barrierColor: Colors.black.withOpacity(0.6),
+      builder: (context) {
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+        
+        // Create solid background for better readability
+        final dialogColor = theme.brightness == Brightness.light
+            ? colorScheme.surface
+            : colorScheme.surface;
+
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 400),
+            decoration: BoxDecoration(
+              color: dialogColor,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: colorScheme.outline.withOpacity(0.2),
+                width: 1,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: colorScheme.shadow.withOpacity(0.15),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+                BoxShadow(
+                  color: colorScheme.primary.withOpacity(0.08),
+                  blurRadius: 40,
+                  offset: const Offset(0, 16),
+                ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Warning icon with modern styling
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: colorScheme.errorContainer.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(
+                    Icons.delete_forever_rounded,
+                    size: 32,
+                    color: colorScheme.error,
+                  ),
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // Title
+                Text(
+                  'Delete Course',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                
+                const SizedBox(height: 12),
+                
+                                 // Main message
+                 Text(
+                   'Are you sure you want to delete "${widget.course!.title}"?',
+                   style: theme.textTheme.bodyLarge?.copyWith(
+                     color: colorScheme.onSurface,
+                     height: 1.4,
+                   ),
+                   textAlign: TextAlign.center,
+                 ),
+                
+                const SizedBox(height: 16),
+                
+                                 // Warning message with modern styling
+                 Container(
+                   padding: const EdgeInsets.all(16),
+                   decoration: BoxDecoration(
+                     color: theme.brightness == Brightness.light
+                         ? colorScheme.errorContainer.withOpacity(0.15)
+                         : colorScheme.errorContainer.withOpacity(0.25),
+                     borderRadius: BorderRadius.circular(12),
+                     border: Border.all(
+                       color: theme.brightness == Brightness.light
+                           ? colorScheme.error.withOpacity(0.3)
+                           : colorScheme.error.withOpacity(0.5),
+                       width: 1,
+                     ),
+                   ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 20,
+                        color: colorScheme.error,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                                                 child: Text(
+                           'This action cannot be undone. All course content, lessons, and progress will be permanently deleted.',
+                           style: theme.textTheme.bodyMedium?.copyWith(
+                             color: theme.brightness == Brightness.light
+                                 ? colorScheme.error
+                                 : colorScheme.onErrorContainer,
+                             fontWeight: FontWeight.w500,
+                             height: 1.4,
+                           ),
+                         ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 24),
+                
+                // Action buttons with modern styling
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(width: 12),
+                    
+                                         Expanded(
+                       child: ElevatedButton(
+                         onPressed: () => Navigator.pop(context, true),
+                         style: ElevatedButton.styleFrom(
+                           backgroundColor: colorScheme.error,
+                           foregroundColor: Colors.white, // Force white text for accessibility
+                           padding: const EdgeInsets.symmetric(vertical: 16),
+                           elevation: 0,
+                           shape: RoundedRectangleBorder(
+                             borderRadius: BorderRadius.circular(12),
+                           ),
+                         ),
+                         child: Text(
+                           'Delete',
+                           style: theme.textTheme.labelLarge?.copyWith(
+                             fontWeight: FontWeight.bold, // Make it bold
+                             color: Colors.white, // Ensure white color
+                           ),
+                         ),
+                       ),
+                     ),
+                  ],
+                ),
+              ],
             ),
-            child: const Text('Delete'),
           ),
-        ],
-      ),
+        );
+      },
     );
 
     if (shouldDelete != true) return;
 
-    // Show loading dialog
+    // Show loading dialog with modern design
     if (context.mounted) {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Dialog(
-          child: Padding(
-            padding: EdgeInsets.all(20),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(width: 16),
-                Text('Deleting course...'),
-              ],
+        barrierColor: Colors.black.withOpacity(0.6),
+        builder: (context) {
+          final theme = Theme.of(context);
+          final colorScheme = theme.colorScheme;
+          
+          // Create solid background for better readability
+          final dialogColor = colorScheme.surface;
+
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 300),
+              decoration: BoxDecoration(
+                color: dialogColor,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: colorScheme.outline.withOpacity(0.2),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.shadow.withOpacity(0.12),
+                    blurRadius: 20,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      'Deleting course...',
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       );
     }
 
@@ -445,7 +676,9 @@ class _CourseCardState extends State<CourseCard> {
               child: Icon(
                 hasError ? Icons.broken_image_outlined : Icons.auto_stories,
                 size: 32,
-                color: theme.colorScheme.primary.withOpacity(0.8),
+                color: theme.brightness == Brightness.light
+                    ? theme.colorScheme.primary.withOpacity(0.8)
+                    : theme.colorScheme.onPrimaryContainer.withOpacity(0.9),
               ),
             ),
           if (!isLoading) ...[
@@ -455,7 +688,9 @@ class _CourseCardState extends State<CourseCard> {
               child: Text(
                 hasError ? 'Image unavailable' : widget.course!.title,
                 style: theme.textTheme.titleSmall?.copyWith(
-                  color: theme.colorScheme.primary.withOpacity(0.9),
+                  color: theme.brightness == Brightness.light
+                      ? theme.colorScheme.primary.withOpacity(0.9)
+                      : theme.colorScheme.onPrimaryContainer,
                   fontWeight: FontWeight.w600,
                 ),
                 textAlign: TextAlign.center,

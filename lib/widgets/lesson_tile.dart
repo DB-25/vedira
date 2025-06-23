@@ -215,8 +215,7 @@ class _LessonTileState extends State<LessonTile> {
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 10,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: textColor,
               fontWeight: FontWeight.bold,
             ),
@@ -492,7 +491,7 @@ class _LessonTileState extends State<LessonTile> {
                                   Expanded(
                                     child: Text(
                                       resource,
-                                      style: TextStyle(
+                                      style: theme.textTheme.bodyMedium?.copyWith(
                                         color: theme.colorScheme.primary,
                                         decoration: TextDecoration.underline,
                                       ),
