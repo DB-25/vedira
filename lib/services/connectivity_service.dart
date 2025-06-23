@@ -15,8 +15,8 @@ class ConnectivityService {
     _checkConnectivity();
 
     // Listen for connectivity changes
-    _connectivity.onConnectivityChanged.listen((ConnectivityResult result) {
-      Logger.i(_tag, 'Connectivity changed: $result');
+    _connectivity.onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      Logger.i(_tag, 'Connectivity changed: $results');
       _checkConnectivity();
     });
   }
@@ -30,9 +30,9 @@ class ConnectivityService {
 
   // Check if internet is available
   Future<bool> isInternetAvailable() async {
-    ConnectivityResult result = await _connectivity.checkConnectivity();
-    Logger.d(_tag, 'Connectivity result: $result');
-    return result != ConnectivityResult.none;
+    List<ConnectivityResult> results = await _connectivity.checkConnectivity();
+    Logger.d(_tag, 'Connectivity results: $results');
+    return !results.contains(ConnectivityResult.none);
   }
 
   // Clean up when service is no longer needed
