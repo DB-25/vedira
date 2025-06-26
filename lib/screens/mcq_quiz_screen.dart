@@ -8,6 +8,8 @@ import '../models/lesson.dart';
 import '../services/mcq_service.dart';
 import '../services/progress_service.dart';
 import '../utils/logger.dart';
+import '../utils/theme_manager.dart';
+import '../components/custom_app_bar.dart';
 import '../screens/lesson_view_screen.dart';
 
 class McqQuizScreen extends StatefulWidget {
@@ -165,12 +167,134 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
 
       _revealAnswer(questionIndex);
 
-      // Check if this is the last question to mark quiz as completed
-      if (questionIndex >= _questions.length - 1) {
-        // Quiz completed - but don't auto-advance to results
-        // User will need to click "View Results" button
-      }
+      // Don't auto-show explanation - let user choose via the bottom action bar
+      // This gives users control over when they want to see explanations
     }
+  }
+
+
+
+  void _showExplanationBottomSheet(String explanation, int questionIndex) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.6,
+        decoration: BoxDecoration(
+          color: colorScheme.cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          boxShadow: [
+                      BoxShadow(
+            color: colorScheme.shadow.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+          ],
+        ),
+        child: Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              height: 4,
+              width: 40,
+              decoration: BoxDecoration(
+                color: colorScheme.onSurface.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.lightbulb_outline,
+                    color: colorScheme.primary,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Explanation',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: Icon(Icons.close, color: colorScheme.onSurface),
+                    style: IconButton.styleFrom(
+                      backgroundColor: colorScheme.surface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Explanation content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  explanation,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    height: 1.6,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ),
+            ),
+
+            // Action buttons
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24), // Added bottom padding
+              child: SafeArea(
+                child: Row(
+                  children: [
+                    if (questionIndex < _questions.length - 1) ...[
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            _goToQuestion(questionIndex + 1);
+                          },
+                          icon: const Icon(Icons.arrow_forward),
+                          label: const Text('Next Question'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            Navigator.of(context).pop();
+                            await _completeQuiz();
+                          },
+                          icon: const Icon(Icons.flag),
+                          label: const Text('View Results'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _goToQuestion(int questionIndex) {
@@ -183,6 +307,99 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
+    }
+  }
+
+  Widget _buildBottomActionBar() {
+    if (_isLoading || _hasError || _quizCompleted) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final currentQuestion = _questions[_currentQuestionIndex];
+    final selectedIndex = _selectedAnswers[_currentQuestionIndex];
+    final isRevealed = _answersRevealed[_currentQuestionIndex] ?? false;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.cardColor,
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            // View Explanation button (only show if revealed and explanation exists)
+            if (isRevealed && currentQuestion.explanation.isNotEmpty) ...[
+              Expanded(
+                flex: 1,
+                child: OutlinedButton.icon(
+                  onPressed: () => _showExplanationBottomSheet(
+                    currentQuestion.explanation,
+                    _currentQuestionIndex,
+                  ),
+                  icon: Icon(Icons.lightbulb_outline, size: 18),
+                  label: Text('Explain'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+            ],
+
+            // Main action button
+            Expanded(
+              flex: 2,
+              child: _buildMainActionButton(selectedIndex, isRevealed),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMainActionButton(int? selectedIndex, bool isRevealed) {
+    if (!isRevealed) {
+      // Show Submit Answer button
+      return ElevatedButton.icon(
+        onPressed: selectedIndex != null
+            ? () => _submitAnswer(_currentQuestionIndex)
+            : null,
+        icon: Icon(Icons.check, size: 18),
+        label: Text('Submit Answer'),
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+      );
+    } else {
+      // Show Next Question or View Results button
+      if (_currentQuestionIndex < _questions.length - 1) {
+        return ElevatedButton.icon(
+          onPressed: () => _goToQuestion(_currentQuestionIndex + 1),
+          icon: Icon(Icons.arrow_forward, size: 18),
+          label: Text('Next Question'),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+        );
+      } else {
+        return ElevatedButton.icon(
+          onPressed: () async => await _completeQuiz(),
+          icon: Icon(Icons.flag, size: 18),
+          label: Text('View Results'),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+        );
+      }
     }
   }
 
@@ -247,18 +464,19 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
 
         // Show achievement notification if score is high
         if (_scorePercentage >= 90 && mounted) {
+          final theme = Theme.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
                 children: [
-                  const Icon(Icons.star, color: Colors.amber),
+                  Icon(Icons.star, color: theme.colorScheme.secondary),
                   const SizedBox(width: 8),
                   Text(
                     'Excellent work! You scored ${_scorePercentage.round()}%',
                   ),
                 ],
               ),
-              backgroundColor: Colors.green,
+              backgroundColor: theme.colorScheme.success,
               duration: const Duration(seconds: 3),
             ),
           );
@@ -322,8 +540,13 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
   void _navigateToNextLesson() {
     // Check if we have section information to determine next lesson
     if (widget.section == null || widget.currentLessonIndex == null) {
-      // If no section info, go back to course details
-      Navigator.of(context).pop(true);
+      // If no section info, go back to course details with quiz completion data
+      Navigator.of(context).pop({
+        'quizCompleted': true,
+        'score': _correctAnswers,
+        'totalQuestions': _questions.length,
+        'scorePercentage': _scorePercentage,
+      });
       return;
     }
 
@@ -354,8 +577,13 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
     }
 
     // No next lesson available or next lesson not generated
-    // Go back to course details
-    Navigator.of(context).pop(true);
+    // Go back to course details with quiz completion data
+    Navigator.of(context).pop({
+      'quizCompleted': true,
+      'score': _correctAnswers,
+      'totalQuestions': _questions.length,
+      'scorePercentage': _scorePercentage,
+    });
   }
 
   int get _correctAnswers {
@@ -403,12 +631,15 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    // Use the body background from theme manager
+    final bodyBackgroundColor = colorScheme.bodyBackground;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Quiz: ${widget.lessonTitle}'),
-        backgroundColor: theme.colorScheme.primary,
-        foregroundColor: theme.colorScheme.onPrimary,
+      backgroundColor: bodyBackgroundColor,
+      appBar: CustomAppBar(
+        title: 'Quiz: ${widget.lessonTitle}',
         actions: [
           if (!_isLoading && _questions.isNotEmpty)
             Padding(
@@ -417,7 +648,7 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
                 child: Text(
                   '${_currentQuestionIndex + 1}/${_questions.length}',
                   style: theme.textTheme.titleMedium?.copyWith(
-                    color: theme.colorScheme.onPrimary,
+                    color: colorScheme.onSurface,
                   ),
                 ),
               ),
@@ -425,6 +656,7 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
         ],
       ),
       body: SafeArea(child: _buildBody()),
+      bottomNavigationBar: _buildBottomActionBar(),
     );
   }
 
@@ -495,20 +727,20 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
               // Back to chapter option
               const SizedBox(height: 8),
               TextButton.icon(
-                onPressed: () => Navigator.of(context).pop(true),
+                onPressed: () => Navigator.of(context).pop(),
                 icon: Icon(
                   Icons.list,
                   size: 18,
                   color: Theme.of(
                     context,
-                  ).colorScheme.onSurface.withOpacity(0.7),
+                  ).colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
                 label: Text(
                   'Back to Chapter Overview',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: Theme.of(
                       context,
-                    ).colorScheme.onSurface.withOpacity(0.7),
+                    ).colorScheme.onSurface.withValues(alpha: 0.7),
                   ),
                 ),
               ),
@@ -554,7 +786,7 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
           // Progress indicator
           LinearProgressIndicator(
             value: (questionIndex + 1) / _questions.length,
-            backgroundColor: theme.colorScheme.surfaceVariant,
+            backgroundColor: theme.colorScheme.surfaceContainerHighest,
             valueColor: AlwaysStoppedAnimation<Color>(
               theme.colorScheme.primary,
             ),
@@ -563,6 +795,7 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
 
           // Question
           Card(
+            color: theme.colorScheme.cardColor,
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -575,98 +808,46 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text(question.question, style: theme.textTheme.headlineSmall),
+                  Text(
+                    question.question, 
+                    style: theme.textTheme.titleLarge,
+                    softWrap: true,
+                    textAlign: TextAlign.left,
+                  ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 16),
 
-          // Options
+          // Options - using Flexible to allow natural sizing
           Expanded(
-            child: ListView.builder(
-              itemCount:
-                  _shuffledOptions[questionIndex]?.length ??
-                  question.options.length,
-              itemBuilder: (context, optionIndex) {
-                // Use shuffled options if available, otherwise fall back to original
-                final optionText =
-                    _shuffledOptions[questionIndex]?[optionIndex] ??
-                    question.options[optionIndex];
-
-                return _buildOptionCard(
-                  questionIndex,
-                  optionIndex,
-                  optionText,
-                  isRevealed,
-                  selectedIndex,
-                  question.correctAnswerIndex,
-                );
-              },
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  // Build all options dynamically
+                  for (int optionIndex = 0; optionIndex < (_shuffledOptions[questionIndex]?.length ?? question.options.length); optionIndex++)
+                    Container(
+                      width: double.infinity,
+                      margin: EdgeInsets.only(
+                        bottom: optionIndex < (_shuffledOptions[questionIndex]?.length ?? question.options.length) - 1 ? 8 : 0,
+                      ),
+                      child: _buildOptionCard(
+                        questionIndex,
+                        optionIndex,
+                        _shuffledOptions[questionIndex]?[optionIndex] ?? question.options[optionIndex],
+                        isRevealed,
+                        selectedIndex,
+                        question.correctAnswerIndex,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
 
-          // Submit button or explanation
-          if (isRevealed) ...[
-            if (question.explanation.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Card(
-                color: theme.colorScheme.surfaceVariant,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.lightbulb_outline,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Explanation',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        question.explanation,
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            if (questionIndex < _questions.length - 1)
-              ElevatedButton(
-                onPressed: () {
-                  _goToQuestion(questionIndex + 1);
-                },
-                child: const Text('Next Question'),
-              )
-            else
-              ElevatedButton(
-                onPressed: () async {
-                  await _completeQuiz();
-                },
-                child: const Text('View Results'),
-              ),
-          ] else ...[
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed:
-                  selectedIndex != null
-                      ? () => _submitAnswer(questionIndex)
-                      : null,
-              child: const Text('Submit Answer'),
-            ),
-          ],
+          // Action buttons are now in the bottom navigation bar
+          const SizedBox(height: 20),
         ],
       ),
     );
@@ -698,68 +879,70 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
 
     if (isRevealed) {
       if (isCorrect) {
-        cardColor = theme.colorScheme.primaryContainer;
-        borderColor = Colors.green;
+        cardColor = theme.colorScheme.success.withValues(alpha: 0.5); // Increased to 0.5
+        borderColor = theme.colorScheme.success;
         icon = Icons.check_circle;
-        iconColor = Colors.green;
+        iconColor = theme.colorScheme.success;
       } else if (isSelected && !isCorrect) {
-        cardColor = theme.colorScheme.errorContainer;
-        borderColor = Colors.red;
+        cardColor = theme.colorScheme.error.withValues(alpha: 0.5); // Increased to 0.5
+        borderColor = theme.colorScheme.error;
         icon = Icons.cancel;
-        iconColor = Colors.red;
+        iconColor = theme.colorScheme.error;
       }
     } else if (isSelected) {
       cardColor = theme.colorScheme.primaryContainer;
       borderColor = theme.colorScheme.primary;
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Card(
-        color: cardColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: borderColor ?? Colors.transparent, width: 2),
-        ),
-        child: InkWell(
-          onTap:
-              isRevealed
-                  ? null
-                  : () => _selectAnswer(questionIndex, optionIndex),
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor:
-                      isSelected
-                          ? (isRevealed
-                              ? (isCorrect ? Colors.green : Colors.red)
-                              : theme.colorScheme.primary)
-                          : theme.colorScheme.surfaceVariant,
-                  radius: 12,
-                  child: Text(
-                    String.fromCharCode(65 + optionIndex), // A, B, C, D
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color:
-                          isSelected
-                              ? Colors.white
-                              : theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.bold,
-                    ),
+    return Card(
+      color: cardColor ?? theme.colorScheme.cardColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: borderColor ?? Colors.transparent, width: 2),
+      ),
+      child: InkWell(
+        onTap:
+            isRevealed
+                ? null
+                : () => _selectAnswer(questionIndex, optionIndex),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor:
+                    isSelected
+                        ? (isRevealed
+                            ? (isCorrect ? theme.colorScheme.success : theme.colorScheme.error)
+                            : theme.colorScheme.primary)
+                        : theme.colorScheme.surfaceContainerHighest,
+                radius: 12,
+                child: Text(
+                  String.fromCharCode(65 + optionIndex), // A, B, C, D
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color:
+                        isSelected
+                            ? Colors.white
+                            : theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(optionText, style: theme.textTheme.bodyLarge),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  optionText,
+                  style: theme.textTheme.bodyLarge,
+                  softWrap: true,
+                  textAlign: TextAlign.left,
                 ),
-                if (icon != null) ...[
-                  const SizedBox(width: 8),
-                  Icon(icon, color: iconColor, size: 20),
-                ],
+              ),
+              if (icon != null) ...[
+                const SizedBox(width: 8),
+                Icon(icon, color: iconColor, size: 20),
               ],
-            ),
+            ],
           ),
         ),
       ),
@@ -780,205 +963,126 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
     if (!mounted) return;
 
     final theme = Theme.of(context);
-    // Use consistent, encouraging colors instead of score-based colors
-    final celebrationColor = theme.colorScheme.primary;
-    final successColor = Colors.green;
+    final colorScheme = theme.colorScheme;
 
     final result = await showDialog<String>(
       context: context,
-      barrierDismissible: false, // Force user to make a choice
-      barrierColor: Colors.black.withOpacity(0.8), // Solid dark background
+      barrierDismissible: false,
+      barrierColor: colorScheme.shadow.withValues(alpha: 0.6),
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor:
-              theme.scaffoldBackgroundColor, // Explicit background color
-          elevation: 24, // Add elevation for better visual separation
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           child: Container(
+            margin: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: theme.scaffoldBackgroundColor, // Double ensure background
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
+              color: colorScheme.cardColor,
+              borderRadius: BorderRadius.circular(16),
             ),
-            padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Success icon - always celebratory
+                // Header with celebration
                 Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: successColor.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Icon(
-                      Icons.emoji_events,
-                      color: successColor,
-                      size: 50,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Quiz Completed!',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: successColor,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Great job finishing "${widget.lessonTitle}" quiz!',
-                  style: theme.textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-
-                // Score display - neutral and encouraging
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: celebrationColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: celebrationColor.withOpacity(0.3),
-                    ),
-                  ),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
                   child: Column(
                     children: [
+                      // Simple checkmark
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: colorScheme.success.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.check_circle,
+                          color: colorScheme.success,
+                          size: 32,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       Text(
-                        'Your Score',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: celebrationColor,
+                        'Quiz Complete!',
+                        style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 8),
                       Text(
-                        '$_correctAnswers/${_questions.length} (${_scorePercentage.round()}%)',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          color: celebrationColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        _getEncouragingMessage(_scorePercentage),
+                        'You answered $_correctAnswers out of ${_questions.length} questions correctly',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: celebrationColor,
-                          fontWeight: FontWeight.w500,
+                          color: colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
                         textAlign: TextAlign.center,
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
 
-                // What's next section
-                Text(
-                  'What would you like to do next?',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Retake quiz option
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ElevatedButton.icon(
-                    onPressed: () => Navigator.of(context).pop('retake'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.colorScheme.secondary,
-                      foregroundColor: theme.colorScheme.onSecondary,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    icon: const Icon(Icons.refresh, size: 20),
-                    label: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Retake Quiz',
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
+                // Actions
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      // Primary action - Continue or Retake based on context
+                      if (_hasNextLesson()) ...[
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () => Navigator.of(context).pop('next'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: colorScheme.primary,
+                              foregroundColor: colorScheme.onPrimary,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: const Icon(Icons.arrow_forward, size: 18),
+                            label: const Text('Continue Learning'),
                           ),
                         ),
-                        Text(
-                          'Practice makes perfect!',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSecondary.withOpacity(
-                              0.8,
+                        const SizedBox(height: 12),
+                      ],
+
+                      // Secondary actions
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => Navigator.of(context).pop('retake'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                side: BorderSide(color: colorScheme.outline),
+                              ),
+                              icon: const Icon(Icons.refresh, size: 18),
+                              label: const Text('Retry'),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Next lesson option - only show if there's actually a next lesson
-                if (_hasNextLesson()) ...[
-                  Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.of(context).pop('next'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        side: BorderSide(color: theme.colorScheme.primary),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => Navigator.of(context).pop('back'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                side: BorderSide(color: colorScheme.outline),
+                              ),
+                              icon: const Icon(Icons.list, size: 18),
+                              label: const Text('Overview'),
+                            ),
+                          ),
+                        ],
                       ),
-                      icon: Icon(
-                        Icons.arrow_forward,
-                        size: 20,
-                        color: theme.colorScheme.primary,
-                      ),
-                      label: Text(
-                        'Continue to Next Lesson',
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-
-                // Back to course option
-                Container(
-                  width: double.infinity,
-                  child: TextButton.icon(
-                    onPressed: () => Navigator.of(context).pop('back'),
-                    icon: Icon(
-                      Icons.list,
-                      size: 20,
-                      color: theme.colorScheme.onSurface.withOpacity(0.7),
-                    ),
-                    label: Text(
-                      'Back to Chapter Overview',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.7),
-                      ),
-                    ),
+                    ],
                   ),
                 ),
               ],
@@ -998,7 +1102,13 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
           _navigateToNextLesson();
           break;
         case 'back':
-          Navigator.of(context).pop(true); // Go back to course details
+          // Return with quiz completion result to refresh course details
+          Navigator.of(context).pop({
+            'quizCompleted': true,
+            'score': _correctAnswers,
+            'totalQuestions': _questions.length,
+            'scorePercentage': _scorePercentage,
+          });
           break;
       }
     }

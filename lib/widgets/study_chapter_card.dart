@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/section.dart';
 import '../models/user_progress.dart';
 import '../models/chapter_status.dart';
+import '../utils/theme_manager.dart';
 
 class StudyChapterCard extends StatelessWidget {
   final Section section;
@@ -28,6 +29,7 @@ class StudyChapterCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
+      color: theme.colorScheme.cardColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 3,
       child: InkWell(
@@ -110,6 +112,7 @@ class StudyChapterCard extends StatelessWidget {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
+                      backgroundColor: theme.colorScheme.primary,
                     ),
                   ),
                 ),

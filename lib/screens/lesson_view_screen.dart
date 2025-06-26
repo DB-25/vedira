@@ -11,6 +11,8 @@ import '../services/mcq_service.dart';
 import '../services/progress_service.dart';
 import '../screens/mcq_quiz_screen.dart';
 import '../utils/logger.dart';
+import '../utils/theme_manager.dart';
+import '../components/custom_app_bar.dart';
 import '../widgets/code_block_builder.dart';
 import '../widgets/reading_progress_indicator.dart';
 
@@ -275,57 +277,55 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
       builder: (BuildContext context) {
         return Dialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
           ),
+          backgroundColor: theme.colorScheme.cardColor,
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Success icon and message
+                // Success icon
                 Container(
-                  width: 64,
-                  height: 64,
+                  width: 60,
+                  height: 60,
                   decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
+                    color: theme.colorScheme.success.withValues(alpha: 0.2),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.check_circle,
-                    color: Colors.green,
-                    size: 40,
+                    color: theme.colorScheme.success,
+                    size: 36,
                   ),
                 ),
                 const SizedBox(height: 16),
+
+                // Title
                 Text(
-                  'Lesson Completed!',
-                  style: theme.textTheme.titleLarge?.copyWith(
+                  'Lesson Complete!',
+                  style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Colors.green,
+                    color: theme.colorScheme.onSurface,
                   ),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
+
+                // Subtitle
                 Text(
-                  'Great job finishing "${widget.lessonTitle}"',
-                  style: theme.textTheme.bodyMedium,
+                  'You completed "${widget.lessonTitle}"',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
 
-                // What's next section
-                Text(
-                  'What would you like to do next?',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Quiz option
-                Container(
+                // Primary action - Take Quiz
+                SizedBox(
                   width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ElevatedButton.icon(
+                  child: ElevatedButton(
                     onPressed: () => Navigator.of(context).pop('quiz'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: theme.colorScheme.secondary,
@@ -334,85 +334,95 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
+                      elevation: 0,
                     ),
-                    icon: const Icon(Icons.quiz, size: 20),
-                    label: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        const Icon(
+                          Icons.quiz,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
                         Text(
                           bestAttempt != null ? 'Retake Quiz' : 'Take Quiz',
                           style: theme.textTheme.labelLarge?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        if (bestAttempt != null)
-                          Text(
-                            'Best score: ${bestAttempt.score}/${bestAttempt.totalQuestions} (${bestAttempt.scorePercentage.round()}%)',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSecondary.withOpacity(
-                                0.8,
-                              ),
-                            ),
-                          )
-                        else
-                          Text(
-                            'Test your knowledge of this lesson',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSecondary.withOpacity(
-                                0.8,
-                              ),
-                            ),
-                          ),
                       ],
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
 
-                // Next lesson option
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).pop('next'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      side: BorderSide(color: theme.colorScheme.primary),
-                    ),
-                    icon: Icon(
-                      Icons.arrow_forward,
-                      size: 20,
-                      color: theme.colorScheme.primary,
-                    ),
-                    label: Text(
-                      'Continue to Next Lesson',
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Back to course option
-                Container(
-                  width: double.infinity,
-                  child: TextButton.icon(
-                    onPressed: () => Navigator.of(context).pop('back'),
-                    icon: Icon(
-                      Icons.list,
-                      size: 20,
-                      color: theme.colorScheme.onSurface.withOpacity(0.7),
-                    ),
-                    label: Text(
-                      'Back to Chapter Overview',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                // Secondary actions
+                Row(
+                  children: [
+                    // Continue Learning (secondary action)
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop('next'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          side: BorderSide(color: theme.colorScheme.success),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.arrow_forward,
+                              size: 16,
+                              color: theme.colorScheme.success,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Continue',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: theme.colorScheme.success,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                    
+                    const SizedBox(width: 8),
+                    
+                    // Overview option (tertiary action)
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop('back'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          side: BorderSide(color: theme.colorScheme.outline),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.list,
+                              size: 16,
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Overview',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -430,12 +440,22 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
           break;
         case 'next':
           // TODO: Navigate to next lesson (would need to determine which is next)
-          Navigator.of(
-            context,
-          ).pop(true); // For now, go back with completion indicator
+          Navigator.of(context).pop({
+            'lessonCompleted': true,
+            'lessonId': widget.lessonId,
+            'lessonTitle': widget.lessonTitle,
+            'chapterId': widget.chapterId,
+            'courseId': widget.courseId,
+          }); // Go back with lesson completion data
           break;
         case 'back':
-          Navigator.of(context).pop(true); // Go back to course details
+          Navigator.of(context).pop({
+            'lessonCompleted': true,
+            'lessonId': widget.lessonId,
+            'lessonTitle': widget.lessonTitle,
+            'chapterId': widget.chapterId,
+            'courseId': widget.courseId,
+          }); // Go back to course details with lesson completion data
           break;
       }
     }
@@ -482,7 +502,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
       Logger.w(_tag, 'Failed to fetch section info for quiz navigation: $e');
     }
 
-    Navigator.push(
+    final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
         builder:
@@ -496,17 +516,30 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
             ),
       ),
     );
+
+    // If quiz was completed and user went back to course overview,
+    // we need to pop this screen too so the course details screen can refresh
+    if (result != null && result['quizCompleted'] == true) {
+      Logger.i(_tag, 'Quiz completed, going back to course overview. Score: ${result['score']}/${result['totalQuestions']}');
+      // Pop back to course details screen with quiz completion data
+      Navigator.of(context).pop(result);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final isDarkMode = theme.brightness == Brightness.dark;
+
+    // Use the body background from theme manager
+    final bodyBackgroundColor = colorScheme.bodyBackground;
 
     return Scaffold(
       key: _scaffoldKey,
-      appBar: AppBar(
-        title: Text(widget.lessonTitle),
+      backgroundColor: bodyBackgroundColor,
+      appBar: CustomAppBar(
+        title: widget.lessonTitle,
         centerTitle: false,
         actions: [
           // Font size button

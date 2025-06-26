@@ -3,6 +3,8 @@ import '../screens/course_details_screen.dart';
 import '../services/api_service.dart';
 import '../utils/constants.dart';
 import '../utils/logger.dart';
+import '../utils/theme_manager.dart';
+import '../components/custom_app_bar.dart';
 
 class CreateCourseScreen extends StatefulWidget {
   const CreateCourseScreen({super.key});
@@ -158,12 +160,13 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    // Use the body background from theme manager
+    final bodyBackgroundColor = colorScheme.bodyBackground;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create Your Course'),
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
-        elevation: 0,
+      backgroundColor: bodyBackgroundColor,
+      appBar: const CustomAppBar(
+        title: 'Create Your Course',
       ),
       body: Stack(
         children: [
@@ -411,6 +414,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> {
               child: Center(
                 child: Card(
                   margin: const EdgeInsets.all(16),
+                  color: colorScheme.cardColor,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),

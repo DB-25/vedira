@@ -10,6 +10,7 @@ import '../services/chapter_generation_service.dart';
 import '../services/api_service.dart';
 import '../utils/constants.dart';
 import '../utils/logger.dart';
+import '../utils/theme_manager.dart';
 
 class LessonTile extends StatefulWidget {
   final Lesson? lesson;
@@ -64,6 +65,7 @@ class _LessonTileState extends State<LessonTile> {
 
     return Card(
       elevation: 0,
+      color: theme.colorScheme.cardColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
         side: BorderSide(
@@ -408,7 +410,7 @@ class _LessonTileState extends State<LessonTile> {
     return sectionId;
   }
 
-  void _navigateToLessonView(BuildContext context, Lesson? lesson) {
+  void _navigateToLessonView(BuildContext context, Lesson? lesson) async {
     if (lesson == null || widget.courseId == null) {
       _showLessonDetails(context, lesson);
       return;
@@ -416,7 +418,7 @@ class _LessonTileState extends State<LessonTile> {
 
     final chapterId = _extractChapterId(lesson.sectionId);
 
-    Navigator.push(
+    final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
         builder:
@@ -429,6 +431,23 @@ class _LessonTileState extends State<LessonTile> {
             ),
       ),
     );
+
+    // Handle lesson or quiz completion
+    if (result != null && widget.onRefreshNeeded != null) {
+      bool shouldRefresh = false;
+      
+      if (result['lessonCompleted'] == true) {
+        Logger.i(_tag, 'Lesson completed, triggering refresh. Lesson: "${result['lessonTitle']}"');
+        shouldRefresh = true;
+      } else if (result['quizCompleted'] == true) {
+        Logger.i(_tag, 'Quiz completed from lesson view, triggering refresh. Score: ${result['score']}/${result['totalQuestions']}');
+        shouldRefresh = true;
+      }
+      
+      if (shouldRefresh) {
+        widget.onRefreshNeeded!();
+      }
+    }
   }
 
   void _showLessonDetails(BuildContext context, Lesson? lesson) {
@@ -540,7 +559,7 @@ class _LessonTileState extends State<LessonTile> {
       Logger.w(_tag, 'Failed to fetch section info for quiz navigation: $e');
     }
 
-    Navigator.push(
+    final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
         builder:
@@ -554,5 +573,11 @@ class _LessonTileState extends State<LessonTile> {
             ),
       ),
     );
+
+    // If quiz was completed, trigger refresh to update progress
+    if (result != null && result['quizCompleted'] == true && widget.onRefreshNeeded != null) {
+      Logger.i(_tag, 'Quiz completed, triggering refresh. Score: ${result['score']}/${result['totalQuestions']}');
+      widget.onRefreshNeeded!();
+    }
   }
 }

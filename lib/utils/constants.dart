@@ -31,6 +31,9 @@ class AppConstants {
   static const Color paletteNeutral800 = Color(0xFF4A4A4A);
   static const Color paletteNeutral900 = Color(0xFF333333);
 
+  static const Color darkSurfaceGreen = Color(0xFF1E2B22);
+
+
   // Error Colors
   static const Color paletteErrorLight = Color(0xFFF69393);
   static const Color paletteErrorMain = Color(0xFFE75B5B);

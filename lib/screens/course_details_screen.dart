@@ -12,8 +12,10 @@ import '../services/generation_strategy_service.dart';
 import '../services/progress_service.dart';
 import '../utils/constants.dart';
 import '../utils/logger.dart';
+import '../utils/theme_manager.dart';
 import '../widgets/authenticated_image.dart';
 import '../widgets/study_chapter_card.dart';
+import '../components/custom_app_bar.dart';
 
 class CourseDetailsScreen extends StatefulWidget {
   final String courseId;
@@ -417,12 +419,27 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
         ),
       ),
     ).then((result) async {
-      // Refresh progress when returning from lesson
-      if (result == true) {
-        await _loadUserProgress();
-        // Force UI rebuild
-        if (mounted) {
-          setState(() {});
+      // Refresh progress when returning from lesson or quiz
+      if (result != null) {
+        bool shouldRefresh = false;
+        
+        if (result == true) {
+          // Simple boolean return (legacy lesson completion)
+          shouldRefresh = true;
+        } else if (result is Map<String, dynamic>) {
+          if (result['quizCompleted'] == true) {
+            // Quiz completion return with details
+            shouldRefresh = true;
+            Logger.i('CourseDetailsScreen', 'Quiz completed from lesson view. Score: ${result['score']}/${result['totalQuestions']}');
+          } else if (result['lessonCompleted'] == true) {
+            // Lesson completion return with details
+            shouldRefresh = true;
+            Logger.i('CourseDetailsScreen', 'Lesson completed: "${result['lessonTitle']}" in chapter ${result['chapterId']}');
+          }
+        }
+        
+        if (shouldRefresh) {
+          await _handleRefresh();
         }
       }
     });
@@ -651,10 +668,9 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
     ThemeData theme,
     bool isCompleted,
   ) {
-    // Use clear color differentiation - more visible for completed items
-    final cardColor = isCompleted
-        ? Colors.grey.withOpacity(0.2)
-        : theme.colorScheme.primary.withOpacity(0.1);
+    final colorScheme = theme.colorScheme;
+    // Use consistent card color for all lesson items
+    final cardColor = colorScheme.cardColor;
     final borderColor =
         isCompleted ? Colors.grey.shade600 : theme.colorScheme.primary;
     final textColor =
@@ -758,13 +774,12 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
     ThemeData theme,
     QuizAttempt? bestAttempt,
   ) {
+    final colorScheme = theme.colorScheme;
     final hasAttempt = bestAttempt != null;
-    // Use more visible colors for completed quizzes, secondary color for active ones
+    // Use consistent card color for all quiz items
+    final cardColor = colorScheme.cardColor;
     final quizColor =
         hasAttempt ? Colors.grey.shade600 : theme.colorScheme.secondary;
-    final cardColor = hasAttempt
-        ? Colors.grey.withOpacity(0.2)
-        : theme.colorScheme.secondary.withOpacity(0.05);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -966,11 +981,11 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
       ),
     ).then((result) async {
       // Refresh progress when returning from quiz
-      await _loadUserProgress();
-      // Force UI rebuild
-      if (mounted) {
-        setState(() {});
+      if (result != null && result is Map<String, dynamic> && result['quizCompleted'] == true) {
+        Logger.i(_tag, 'Quiz completed from modal. Score: ${result['score']}/${result['totalQuestions']}');
       }
+      
+      await _handleRefresh();
     });
   }
 
@@ -979,11 +994,13 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    // Use the body background from theme manager
+    final bodyBackgroundColor = colorScheme.bodyBackground;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Course Details'),
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
+      backgroundColor: bodyBackgroundColor,
+      appBar: CustomAppBar(
+        title: 'Course Details',
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -1151,8 +1168,10 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
     Course course,
     ThemeData theme,
   ) {
+    final colorScheme = theme.colorScheme;
     return Card(
       elevation: 0,
+      color: colorScheme.cardColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -1588,6 +1607,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
     );
 
     return Card(
+      color: theme.colorScheme.cardColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),

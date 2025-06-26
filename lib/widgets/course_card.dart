@@ -4,6 +4,7 @@ import '../screens/course_details_screen.dart';
 import '../services/api_service.dart';
 import '../utils/logger.dart';
 import '../utils/constants.dart';
+import '../utils/theme_manager.dart';
 import 'authenticated_image.dart';
 
 class CourseCard extends StatefulWidget {
@@ -78,10 +79,8 @@ class _CourseCardState extends State<CourseCard> {
       Logger.e(_tag, 'Empty courseID detected in CourseCard: ${widget.course!.title}');
     }
 
-    // Create glass-morphism effect for better integration
-    final cardColor = theme.brightness == Brightness.light
-        ? Color.alphaBlend(colorScheme.surface.withOpacity(0.85), Colors.white)
-        : Color.alphaBlend(colorScheme.surface.withOpacity(0.90), colorScheme.surface);
+    // Use consistent card color from theme manager
+    final cardColor = colorScheme.cardColor;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),

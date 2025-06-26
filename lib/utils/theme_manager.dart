@@ -40,7 +40,12 @@ extension AppColorScheme on ColorScheme {
   // Body background with subtle primary tint
   Color get bodyBackground => brightness == Brightness.light
       ? Color.alphaBlend(primary.withValues(alpha: 0.25), surface)
-      : Color.alphaBlend(primary.withValues(alpha: 0.25), surface);
+      : Color.alphaBlend(surface.withValues(alpha: 0.9), surface);
+
+  // Consistent card color with glass-morphism effect
+  Color get cardColor => brightness == Brightness.light
+      ? Color.alphaBlend(surface.withValues(alpha: 0.85), const Color(0xFFFFFFFF))
+      : Color.alphaBlend( const Color(0xFFFFFFFF).withValues(alpha: 0.1), surface);
 }
 
 // =========================
@@ -388,9 +393,10 @@ class ThemeManager extends ChangeNotifier {
       onTertiary: AppConstants.paletteNeutral900,
       error: AppConstants.paletteErrorMain,
       onError: AppConstants.paletteNeutral000,
-      surface: isDark 
-          ? AppConstants.paletteNeutral900
-          : AppConstants.paletteNeutral000,
+      // surface: isDark 
+      //     ? AppConstants.paletteNeutral900
+      //     : AppConstants.paletteNeutral000,
+      surface: isDark ? AppConstants.paletteNeutral900 : AppConstants.paletteNeutral000,
       onSurface: isDark 
           ? AppConstants.paletteNeutral100
           : AppConstants.paletteNeutral900,

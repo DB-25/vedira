@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
 import '../utils/constants.dart';
 import '../utils/logger.dart';
+import '../utils/theme_manager.dart';
+import '../components/custom_app_bar.dart';
 import 'login_screen.dart';
 
 class VerificationScreen extends StatefulWidget {
@@ -111,21 +113,13 @@ class _VerificationScreenState extends State<VerificationScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    // Use the body background from theme manager
+    final bodyBackgroundColor = colorScheme.bodyBackground;
+
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: colorScheme.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Verify Email',
-          style: theme.textTheme.titleLarge?.copyWith(
-            color: colorScheme.onSurface,
-          ),
-        ),
+      backgroundColor: bodyBackgroundColor,
+      appBar: const CustomAppBar(
+        title: 'Verify Email',
       ),
       body: SafeArea(
         child: Center(

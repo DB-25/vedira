@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../utils/theme_manager.dart';
+import '../components/custom_app_bar.dart';
 
 class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key});
@@ -8,12 +10,13 @@ class PrivacyPolicyScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    // Use the body background from theme manager
+    final bodyBackgroundColor = colorScheme.bodyBackground;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Privacy Policy'),
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
-        elevation: 0,
+      backgroundColor: bodyBackgroundColor,
+      appBar: const CustomAppBar(
+        title: 'Privacy Policy',
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
