@@ -247,15 +247,13 @@ class _CourseCardState extends State<CourseCard> {
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                _isStarred ? colorScheme.onTertiary : colorScheme.primary,
+                                AppConstants.paletteAction, // Use action color for stars
                               ),
                             ),
                           )
                         : Icon(
                             _isStarred ? Icons.star_rounded : Icons.star_outline_rounded,
-                            color: _isStarred 
-                                ? colorScheme.onTertiary 
-                                : colorScheme.primary,
+                            color: AppConstants.paletteAction, // Use action color for stars
                             size: 16,
                           ),
                   ),

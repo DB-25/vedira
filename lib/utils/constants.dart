@@ -9,26 +9,42 @@ class AppConstants {
   // =========================
   // CENTRALIZED COLOR PALETTES - ACCESSIBILITY FOCUSED
   // =========================
-  
-  // Palette 1 (Secondary) - Cool Green Theme - WCAG AA Compliant
-  static const Color palette1Primary = Color(0xFF1B5E20); // darker green for better contrast
-  static const Color palette1PrimaryLight = Color(0xFF4CAF50); // lighter variant for accents
-  static const Color palette1Secondary = Color(0xFFE91E63); // stronger pink for better contrast
-  static const Color palette1Accent = Color(0xFFD32F2F); // stronger red for alerts
-  static const Color palette1Background = Color(0xFF2E2E2E); // better contrast dark background
-  static const Color palette1Surface = Color(0xFF424242); // mid-tone for cards
-  static const Color palette1Success = Color(0xFF4CAF50); // standard green for success
-  static const Color palette1Warning = Color(0xFFFF9800); // standard orange for warnings
-  
-  // Palette 2 (Primary, Default) - Electric Blue Theme - WCAG AA Compliant
-  static const Color palette2Primary = Color(0xFF1976D2); // darker blue for better contrast
-  static const Color palette2PrimaryLight = Color(0xFF2196F3); // lighter variant for accents
-  static const Color palette2Secondary = Color(0xFF424242); // proper gray instead of pure black
-  static const Color palette2Accent = Color(0xFFFF9800); // orange instead of gold for better contrast
-  static const Color palette2Danger = Color(0xFFD32F2F); // standard red for errors
-  static const Color palette2Background = Color(0xFF1E1E1E); // proper dark background
-  static const Color palette2Surface = Color(0xFF2E2E2E); // mid-tone for cards
-  static const Color palette2Highlight = Color(0xFFFFC107); // amber instead of yellow for better contrast
+
+  // Current Color Palette - WCAG AA Compliant
+  static const Color palettePrimary =
+      Color(0xFF4CAF50); // app bar, with tint for bg
+  static const Color paletteSecondary =
+      Color(0xFFF66194); // primary buttons, primary action,
+  static const Color paletteTertiary = Color(0xFFFFB74D); // secondary actions
+  static const Color paletteAction =
+      Color(0xFF1B5E20); // star, start learning all primary buttons
+
+  // Neutral Scale // use for text - to demonstrate hierarchy
+  static const Color paletteNeutral000 = Color(0xFFFFFFFF);
+  static const Color paletteNeutral100 = Color(0xFFE8E8E8);
+  static const Color paletteNeutral200 = Color(0xFFD2D2D2);
+  static const Color paletteNeutral300 = Color(0xFFBBBBBB);
+  static const Color paletteNeutral400 = Color(0xFFA4A4A4);
+  static const Color paletteNeutral500 = Color(0xFF8E8E8E);
+  static const Color paletteNeutral600 = Color(0xFF777777);
+  static const Color paletteNeutral700 = Color(0xFF606060);
+  static const Color paletteNeutral800 = Color(0xFF4A4A4A);
+  static const Color paletteNeutral900 = Color(0xFF333333);
+
+  // Error Colors
+  static const Color paletteErrorLight = Color(0xFFF69393);
+  static const Color paletteErrorMain = Color(0xFFE75B5B);
+  static const Color paletteErrorDark = Color(0xFFD32F2F);
+
+  // Warning Colors
+  static const Color paletteWarningLight = Color(0xFFFFFFC4);
+  static const Color paletteWarningMedium = Color(0xFFFFFF9C);
+  static const Color paletteWarningDark = Color(0xFFF3F63D);
+
+  // Success Colors
+  static const Color paletteSuccessLight = Color(0xFFA5FAAA);
+  static const Color paletteSuccessMedium = Color(0xFF7AD07F);
+  static const Color paletteSuccessDark = Color(0xFF329C39);
 
   // Text Styles - Using Google Fonts
   static final TextStyle headingStyle = GoogleFonts.inter(

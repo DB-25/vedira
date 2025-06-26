@@ -11,6 +11,7 @@ import '../services/auth_service.dart';
 import '../services/secure_storage_service.dart';
 import '../utils/theme_manager.dart';
 import '../utils/logger.dart';
+import '../utils/constants.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 
@@ -285,14 +286,23 @@ class _SplashScreenState extends State<SplashScreen>
             end: Alignment.bottomRight,
             colors: isDarkMode
                 ? [
-                    const Color(0xFF0A0A0A),
-                    const Color(0xFF1A1A2E),
-                    const Color(0xFF16213E),
+                    AppConstants.paletteNeutral900,
+                    AppConstants.paletteNeutral800,
+                    Color.alphaBlend(
+                      AppConstants.palettePrimary.withOpacity(0.1),
+                      AppConstants.paletteNeutral800,
+                    ),
                   ]
                 : [
-                    const Color(0xFFF8F9FA),
-                    const Color(0xFFE3F2FD),
-                    const Color(0xFFBBDEFB),
+                    AppConstants.paletteNeutral000,
+                    Color.alphaBlend(
+                      AppConstants.palettePrimary.withOpacity(0.08),
+                      AppConstants.paletteNeutral000,
+                    ),
+                    Color.alphaBlend(
+                      AppConstants.palettePrimary.withOpacity(0.15),
+                      AppConstants.paletteNeutral100,
+                    ),
                   ],
           ),
         ),
@@ -369,100 +379,33 @@ class _SplashScreenState extends State<SplashScreen>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo section with animations
-                  AnimatedBuilder(
-                    animation: _pulseAnimation,
-                    builder: (context, child) {
-                      return Transform.scale(
-                        scale: _pulseAnimation.value,
-                        child: Container(
-                          width: 120,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                colorScheme.primary,
-                                colorScheme.secondary,
-                              ],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: colorScheme.primary.withOpacity(0.3),
-                                blurRadius: 20,
-                                spreadRadius: 5,
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            Icons.school_rounded,
-                            size: 60,
-                            color: Colors.white,
-                          ),
-                        )
-                            .animate(onPlay: (controller) => controller.repeat())
-                            .shimmer(
-                              duration: 2000.ms,
-                              color: Colors.white.withOpacity(0.3),
-                            ),
-                      );
-                    },
+                  // Logo section - clean and simple
+                  Container(
+                    width: MediaQuery.of(context).size.width * 0.75, 
+                    //height: 220,
+                    child: Image.asset(
+                      'lib/assets/full_logo.png',
+                      fit: BoxFit.contain,
+                    ),
                   ),
 
-                  const SizedBox(height: 40),
+                //  const SizedBox(height: 40),
 
-                  // App name with gradient text and shadow
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: ShaderMask(
-                      shaderCallback: (bounds) => LinearGradient(
-                        colors: [
-                          colorScheme.primary,
-                          colorScheme.secondary,
-                          colorScheme.tertiary,
-                        ],
-                      ).createShader(bounds),
-                      child: Text(
-                        'Vedira',
-                        style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 2.0,
-                          shadows: [
-                            Shadow(
-                              offset: const Offset(0, 4),
-                              blurRadius: 8,
-                              color: Colors.black.withOpacity(0.3),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )
-                      .animate()
-                      .fadeIn(delay: 200.ms, duration: 800.ms)
-                      .slideY(begin: 0.3, end: 0),
-
-                  const SizedBox(height: 16),
-
-                  // Tagline
-                  Text(
-                    'Your Personalized Learning Companion',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: isDarkMode
-                          ? Colors.white.withOpacity(0.8)
-                          : Colors.black.withOpacity(0.7),
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0.5,
-                    ),
-                    textAlign: TextAlign.center,
-                  )
-                      .animate()
-                      .fadeIn(delay: 400.ms, duration: 800.ms)
-                      .slideY(begin: 0.3, end: 0),
+                  // // Tagline
+                  // Text(
+                  //   'Your Personalized Learning Companion',
+                  //   style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  //     color: isDarkMode
+                  //         ? Colors.white.withOpacity(0.8)
+                  //         : Colors.black.withOpacity(0.7),
+                  //     fontWeight: FontWeight.w500,
+                  //     letterSpacing: 0.5,
+                  //   ),
+                  //   textAlign: TextAlign.center,
+                  // )
+                  //     .animate()
+                  //     .fadeIn(delay: 400.ms, duration: 800.ms)
+                  //     .slideY(begin: 0.3, end: 0),
 
                   const SizedBox(height: 80),
 
