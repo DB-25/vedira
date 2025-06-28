@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import '../screens/course_details_screen.dart';
 import '../services/api_service.dart';
 import '../utils/logger.dart';
@@ -204,6 +205,67 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
     });
   }
 
+  // File validation constants
+  static const int maxImageSizeBytes = 3 * 1024 * 1024 + 700 * 1024; // 3.7MB
+  static const int maxDocumentSizeBytes = 4 * 1024 * 1024 + 500 * 1024; // 4.5MB
+  static const int maxImageDimension = 8000; // 8000x8000 px
+  
+  // Image file extensions
+  static const List<String> imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+  
+  Future<String?> _validateFile(PlatformFile file, Uint8List bytes) async {
+    final fileExtension = file.extension?.toLowerCase() ?? '';
+    final fileName = file.name;
+    final fileSize = bytes.length;
+    
+    Logger.i(_tag, 'Validating file: $fileName (${_formatFileSize(fileSize)})');
+    
+    // Check if it's an image file
+    bool isImage = imageExtensions.contains(fileExtension);
+    
+    if (isImage) {
+      // Validate image size
+      if (fileSize > maxImageSizeBytes) {
+        return 'Image file is too large (${_formatFileSize(fileSize)}). Maximum size allowed is ${_formatFileSize(maxImageSizeBytes)}.';
+      }
+      
+      // Validate image dimensions
+      try {
+        final ui.Codec codec = await ui.instantiateImageCodec(bytes);
+        final ui.FrameInfo frameInfo = await codec.getNextFrame();
+        final ui.Image image = frameInfo.image;
+        
+        final width = image.width;
+        final height = image.height;
+        
+        Logger.i(_tag, 'Image dimensions: ${width}x${height}');
+        
+        if (width > maxImageDimension || height > maxImageDimension) {
+          return 'Image dimensions are too large (${width}x${height}). Maximum allowed is ${maxImageDimension}x${maxImageDimension} pixels.';
+        }
+        
+        image.dispose();
+        codec.dispose();
+      } catch (e) {
+        Logger.e(_tag, 'Error checking image dimensions', error: e);
+        return 'Unable to process image file. Please try a different image.';
+      }
+    } else {
+      // Validate document size
+      if (fileSize > maxDocumentSizeBytes) {
+        return 'Document file is too large (${_formatFileSize(fileSize)}). Maximum size allowed is ${_formatFileSize(maxDocumentSizeBytes)}.';
+      }
+    }
+    
+    return null; // No validation errors
+  }
+  
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
   Future<void> _pickDocument() async {
     setState(() => _isUploadingFile = true);
     
@@ -217,7 +279,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
       
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf', 'doc', 'docx', 'txt', 'csv', 'xlsx', 'jpg', 'jpeg', 'png'],
+        allowedExtensions: ['pdf', 'doc', 'docx', 'txt', 'csv', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'],
         allowMultiple: false,
         withData: true, // Ensure we get file data
       );
@@ -236,6 +298,26 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
           throw Exception('Unable to read file data');
         }
         
+        // Validate the file
+        final validationError = await _validateFile(selectedFile, bytes);
+        if (validationError != null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(validationError),
+                backgroundColor: Theme.of(context).colorScheme.error,
+                duration: const Duration(seconds: 5),
+                action: SnackBarAction(
+                  label: 'Got it',
+                  textColor: Colors.white,
+                  onPressed: () {},
+                ),
+              ),
+            );
+          }
+          return; // Don't proceed with invalid file
+        }
+        
         final base64String = base64Encode(bytes);
         
         setState(() {
@@ -243,14 +325,15 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
           _documentBase64 = base64String;
         });
         
-        Logger.i(_tag, 'Document selected successfully: ${selectedFile.name} (${bytes.length} bytes)');
+        Logger.i(_tag, 'Document selected and validated successfully: ${selectedFile.name} (${_formatFileSize(bytes.length)})');
         
         if (mounted) {
+          final isImage = imageExtensions.contains(selectedFile.extension?.toLowerCase());
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('File selected: ${selectedFile.name}'),
+              content: Text('✅ ${isImage ? 'Image' : 'Document'} selected: ${selectedFile.name} (${_formatFileSize(bytes.length)})'),
               backgroundColor: Theme.of(context).colorScheme.primary,
-              duration: const Duration(seconds: 2),
+              duration: const Duration(seconds: 3),
             ),
           );
         }
@@ -298,6 +381,13 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
     if (_selectedPath == 'document' && _selectedFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a document first')),
+      );
+      return;
+    }
+    
+    if (_selectedPath == 'document' && _documentBase64 == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('File upload incomplete. Please try selecting the file again.')),
       );
       return;
     }
@@ -550,6 +640,56 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
               color: colorScheme.onSurface.withOpacity(0.7),
             ),
           ),
+          const SizedBox(height: 12),
+          
+          // File upload guidelines
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: colorScheme.primary.withOpacity(0.2),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: colorScheme.primary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Upload Guidelines',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '📄 Documents: Max 4.5MB (PDF, DOC, DOCX, TXT, CSV, XLSX)',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurface.withOpacity(0.8),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '🖼️ Images: Max 3.7MB, up to 8000×8000 pixels (JPG, PNG, GIF, etc.)',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurface.withOpacity(0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
           
           GestureDetector(
@@ -580,7 +720,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
                           textAlign: TextAlign.center,
                         ),
                         Text(
-                          '${(_selectedFile!.size / 1024 / 1024).toStringAsFixed(1)} MB',
+                          _formatFileSize(_selectedFile!.size),
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: colorScheme.onSurface.withOpacity(0.7),
                           ),

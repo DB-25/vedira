@@ -8,8 +8,10 @@ import '../models/section.dart';
 import '../models/user_progress.dart';
 import '../services/api_service.dart';
 import '../services/mcq_service.dart';
+import '../services/flashcard_service.dart';
 import '../services/progress_service.dart';
 import '../screens/mcq_quiz_screen.dart';
+import '../screens/flashcard_screen.dart';
 import '../utils/logger.dart';
 import '../utils/theme_manager.dart';
 import '../components/custom_app_bar.dart';
@@ -39,6 +41,7 @@ class LessonViewScreen extends StatefulWidget {
 class _LessonViewScreenState extends State<LessonViewScreen> {
   final ApiService _apiService = ApiService();
   final McqService _mcqService = McqService();
+  final FlashcardService _flashcardService = FlashcardService();
   final ProgressService _progressService = ProgressService();
   final String _tag = 'LessonViewScreen';
   final ScrollController _scrollController = ScrollController();
@@ -58,12 +61,14 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
       false; // Track 90% scroll progress for completion button
   bool _showFab = true; // Always show FAB, but with dynamic behavior
   bool _hasMcqs = false; // Track if MCQs are available
+  bool _hasFlashcards = false; // Track if flashcards are available
 
   @override
   void initState() {
     super.initState();
     _loadLessonContent();
     _checkMcqAvailability();
+    _checkFlashcardAvailability();
 
     // Add scroll listener for FAB visibility
     _scrollController.addListener(_scrollListener);
@@ -75,6 +80,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
     _scrollController.dispose();
     _tocScrollController.dispose();
     _mcqService.dispose();
+    _flashcardService.dispose();
     super.dispose();
   }
 
@@ -171,6 +177,25 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
       }
     } catch (e) {
       Logger.w(_tag, 'Error checking MCQ availability: $e');
+    }
+  }
+
+  // Check if flashcards are available for this lesson
+  Future<void> _checkFlashcardAvailability() async {
+    try {
+      final hasFlashcards = await _flashcardService.areFlashcardsAvailable(
+        courseId: widget.courseId,
+        chapterId: widget.chapterId,
+        lessonId: widget.lessonId,
+      );
+
+      if (mounted) {
+        setState(() {
+          _hasFlashcards = hasFlashcards;
+        });
+      }
+    } catch (e) {
+      Logger.w(_tag, 'Error checking flashcard availability: $e');
     }
   }
 
@@ -526,6 +551,53 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
     }
   }
 
+  void _navigateToFlashcards() async {
+    // Try to fetch section information to enable next lesson navigation
+    Section? section;
+    int? currentLessonIndex;
+
+    try {
+      final course = await _apiService.getCourse(widget.courseId);
+
+      // Find the section that contains this lesson
+      if (course.sections != null) {
+        for (final s in course.sections!) {
+          final lessonIndex = s.lessons.indexWhere(
+            (l) => l.id == widget.lessonId,
+          );
+          if (lessonIndex >= 0) {
+            section = s;
+            currentLessonIndex = lessonIndex;
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      Logger.w(_tag, 'Failed to fetch section info for flashcard navigation: $e');
+    }
+
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => FlashcardScreen(
+              courseId: widget.courseId,
+              chapterId: widget.chapterId,
+              lessonId: widget.lessonId,
+              lessonTitle: widget.lessonTitle,
+              section: section,
+              currentLessonIndex: currentLessonIndex,
+            ),
+      ),
+    );
+
+    // Handle any result from flashcard screen if needed
+    if (result != null && result['flashcardsCompleted'] == true) {
+      Logger.i(_tag, 'Flashcards completed, refreshing lesson view');
+      // Can add any refresh logic here if needed
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -559,6 +631,12 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
             icon: const Icon(Icons.quiz),
             tooltip: 'Take Quiz',
             onPressed: _hasMcqs ? _navigateToMcqQuiz : null,
+          ),
+          // Flashcards button
+          IconButton(
+            icon: const Icon(Icons.style),
+            tooltip: 'Study Flashcards',
+            onPressed: _hasFlashcards ? _navigateToFlashcards : null,
           ),
         ],
       ),

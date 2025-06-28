@@ -8,6 +8,8 @@ import '../screens/lesson_view_screen.dart';
 import '../screens/mcq_quiz_screen.dart';
 import '../services/chapter_generation_service.dart';
 import '../services/api_service.dart';
+import '../services/flashcard_service.dart';
+import '../screens/flashcard_screen.dart';
 import '../utils/constants.dart';
 import '../utils/logger.dart';
 import '../utils/theme_manager.dart';
@@ -62,6 +64,7 @@ class _LessonTileState extends State<LessonTile> {
     final isGenerated = widget.chapterStatus?.hasContent ?? lesson.generated;
     final isCompleted = lesson.completed;
     final hasMcqs = widget.chapterStatus?.hasMcqs ?? false;
+    final hasFlashcards = widget.chapterStatus?.hasFlashcards ?? false;
 
     return Card(
       elevation: 0,
@@ -149,6 +152,14 @@ class _LessonTileState extends State<LessonTile> {
                 onPressed: _navigateToMcqQuiz,
                 tooltip: 'Take Quiz',
                 color: theme.colorScheme.secondary,
+              ),
+            // Flashcards button - show if flashcards are available
+            if (hasFlashcards && isGenerated)
+              IconButton(
+                icon: const Icon(Icons.style),
+                onPressed: _navigateToFlashcards,
+                tooltip: 'Study Flashcards',
+                color: theme.colorScheme.tertiary,
               ),
             // Generate content button - show if content is not generated and not currently generating
             if (!isGenerated && !_isGenerating)
@@ -577,6 +588,56 @@ class _LessonTileState extends State<LessonTile> {
     // If quiz was completed, trigger refresh to update progress
     if (result != null && result['quizCompleted'] == true && widget.onRefreshNeeded != null) {
       Logger.i(_tag, 'Quiz completed, triggering refresh. Score: ${result['score']}/${result['totalQuestions']}');
+      widget.onRefreshNeeded!();
+    }
+  }
+
+  void _navigateToFlashcards() async {
+    if (widget.lesson == null || widget.courseId == null) return;
+
+    final chapterId = _extractChapterId(widget.lesson!.sectionId);
+
+    // Try to fetch section information to enable next lesson navigation
+    Section? section;
+    int? currentLessonIndex;
+    
+    try {
+      final apiService = ApiService();
+      final course = await apiService.getCourse(widget.courseId!);
+      
+      // Find the section that contains this lesson
+      if (course.sections != null) {
+        for (final s in course.sections!) {
+          final lessonIndex = s.lessons.indexWhere((l) => l.id == widget.lesson!.id);
+          if (lessonIndex >= 0) {
+            section = s;
+            currentLessonIndex = lessonIndex;
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      Logger.w(_tag, 'Failed to fetch section info for flashcard navigation: $e');
+    }
+
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => FlashcardScreen(
+              courseId: widget.courseId!,
+              chapterId: chapterId,
+              lessonId: widget.lesson!.id,
+              lessonTitle: widget.lesson!.title,
+              section: section,
+              currentLessonIndex: currentLessonIndex,
+            ),
+      ),
+    );
+
+    // Handle any result from flashcard screen if needed
+    if (result != null && result['flashcardsCompleted'] == true && widget.onRefreshNeeded != null) {
+      Logger.i(_tag, 'Flashcards completed, triggering refresh');
       widget.onRefreshNeeded!();
     }
   }

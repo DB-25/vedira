@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/course.dart';
@@ -6,6 +7,7 @@ import '../models/section.dart';
 import '../models/user_progress.dart';
 import '../screens/lesson_view_screen.dart';
 import '../screens/mcq_quiz_screen.dart';
+import '../screens/flashcard_screen.dart';
 import '../services/api_service.dart';
 import '../services/chapter_generation_service.dart';
 import '../services/generation_strategy_service.dart';
@@ -52,6 +54,9 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
   bool _progressInitialized = false;
   bool _recommendationsLoaded = false;
   String? _lastCourseId;
+  
+  // Background generation polling
+  Timer? _backgroundPollingTimer;
 
   @override
   void initState() {
@@ -74,6 +79,9 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+
+    // Stop background polling timer
+    _backgroundPollingTimer?.cancel();
 
     // Stop polling when user navigates away from this screen
     _chapterGenerationService.stopCoursePolling(widget.courseId);
@@ -235,6 +243,9 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
           });
         }
 
+        // Start periodic refresh while background generation is active
+        _startBackgroundGenerationPolling();
+
         // Also trigger a delayed refresh to ensure data is up to date
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted) {
@@ -244,9 +255,10 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
       },
     );
 
-    // Listen for completion to refresh the course data
+    // Listen for completion to refresh the course data (for foreground completion)
     progressStream.listen((progress) {
       if (progress.phase == GenerationPhase.completed) {
+        Logger.i(_tag, 'Foreground generation completed for $chapterId - refreshing UI');
         _handleRefresh();
       }
     });
@@ -322,6 +334,40 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
     });
 
     Logger.i(_tag, 'Course refresh setState completed');
+  }
+
+  void _startBackgroundGenerationPolling() {
+    // Stop any existing polling timer
+    _backgroundPollingTimer?.cancel();
+
+    Logger.i(_tag, 'Starting lightweight background generation polling');
+    
+    _backgroundPollingTimer = Timer.periodic(
+      const Duration(seconds: 5), // Check more frequently but lightweight
+      (timer) async {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+
+        // Lightweight check - just see if background generations are still active
+        final backgroundGenerations = _generationService.getBackgroundGenerations(widget.courseId);
+        
+        if (backgroundGenerations.isEmpty) {
+          // Background generation completed! Now refresh the UI once
+          Logger.i(_tag, 'Background generation completed - refreshing UI once');
+          timer.cancel();
+          _backgroundPollingTimer = null;
+          
+          // Only refresh now that generation is actually complete
+          await _handleRefresh();
+          return;
+        }
+
+        // Still generating - just log, don't refresh the entire screen
+        Logger.d(_tag, 'Background generation still active (${backgroundGenerations.length} chapters) - no UI refresh needed');
+      },
+    );
   }
 
   Future<void> _initializeProgress(Course course) async {
@@ -450,77 +496,62 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
+        initialChildSize: 0.85,
         minChildSize: 0.5,
-        maxChildSize: 0.9,
+        maxChildSize: 0.95,
         expand: false,
         builder: (context, scrollController) {
           final theme = Theme.of(context);
+          final colorScheme = theme.colorScheme;
           final chapterProgress = _userProgress?.chapterProgress[section.id];
 
-          // Get chapter status to check if MCQs are available
+          // Get chapter status to check if MCQs and flashcards are available
           final chapterStatus = course.getChapterStatus(section.id);
           final hasMcqs = chapterStatus?.hasMcqs ?? false;
+          final hasFlashcards = chapterStatus?.hasFlashcards ?? false;
 
-          // Create mixed list of lessons and quizzes
-          final List<Map<String, dynamic>> studyItems = [];
+          // Calculate progress
+          final totalLessons = section.lessons.length;
+          final completedLessons = chapterProgress?.completedLessons.length ?? 0;
+          final totalQuizAttempts = chapterProgress?.quizAttempts.values.expand((attempts) => attempts).length ?? 0;
+          final progressPercentage = totalLessons > 0 ? (completedLessons / totalLessons) : 0.0;
 
+          // Find next recommended action (lesson → flashcards → quiz)
+          String nextAction = 'Start your first lesson';
+          int? nextLessonIndex;
           for (int i = 0; i < section.lessons.length; i++) {
             final lesson = section.lessons[i];
-
-            // Add lesson
-            studyItems.add({
-              'type': 'lesson',
-              'lesson': lesson,
-              'index': i + 1,
-            });
-
-            // Add corresponding quiz if the chapter has MCQs available
-            // MCQs can be generated independently of lesson content
-            if (hasMcqs) {
-              final attempts = chapterProgress?.quizAttempts[lesson.id] ?? [];
-              final bestAttempt = attempts.isNotEmpty
-                  ? attempts.reduce(
-                      (a, b) => a.scorePercentage > b.scorePercentage ? a : b,
-                    )
-                  : null;
-
-              studyItems.add({
-                'type': 'quiz',
-                'lesson': lesson,
-                'index': i + 1,
-                'bestAttempt': bestAttempt,
-              });
-            } else {
-              // Quiz not available for this lesson
+            final isCompleted = chapterProgress?.completedLessons.contains(lesson.id) ?? false;
+            final hasQuizAttempts = (chapterProgress?.quizAttempts[lesson.id]?.isNotEmpty ?? false);
+            
+            if (!isCompleted && lesson.generated) {
+              nextAction = 'Continue with "${lesson.title}"';
+              nextLessonIndex = i;
+              break;
+            } else if (isCompleted && hasFlashcards && !hasQuizAttempts) {
+              nextAction = 'Reinforce learning with "${lesson.title}" flashcards';
+              nextLessonIndex = i;
+              break;
+            } else if (isCompleted && hasMcqs && !hasQuizAttempts && !hasFlashcards) {
+              nextAction = 'Test your knowledge with "${lesson.title}" quiz';
+              nextLessonIndex = i;
+              break;
             }
           }
-
-          // Find first uncompleted lesson for auto-scroll
-          int firstUncompletedIndex = -1;
-          for (int i = 0; i < studyItems.length; i++) {
-            final item = studyItems[i];
-            if (item['type'] == 'lesson') {
-              final lesson = item['lesson'] as Lesson;
-              final isCompleted =
-                  chapterProgress?.completedLessons.contains(lesson.id) ??
-                      false;
-              if (!isCompleted && lesson.generated) {
-                firstUncompletedIndex = i;
-                break;
-              }
-            }
+          
+          if (nextLessonIndex == null && completedLessons > 0) {
+            nextAction = 'Great progress! Keep learning';
           }
 
-          // Auto-scroll to first uncompleted lesson after sheet is built
-          if (firstUncompletedIndex >= 0) {
+          // Auto-scroll to next uncompleted lesson after sheet is built
+          if (nextLessonIndex != null) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (scrollController.hasClients) {
-                final itemHeight = 100.0; // Approximate height of each item
-                final scrollOffset = firstUncompletedIndex * itemHeight;
+                final itemHeight = 200.0; // Approximate height of each learning path item
+                final scrollOffset = nextLessonIndex! * itemHeight;
                 scrollController.animateTo(
                   scrollOffset,
                   duration: const Duration(milliseconds: 500),
@@ -532,131 +563,506 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
 
           return Container(
             decoration: BoxDecoration(
-              color: theme.scaffoldBackgroundColor,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
-              ),
+              color: colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             ),
             child: Column(
               children: [
                 // Handle bar
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Container(
-                    height: 4,
-                    width: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colorScheme.onSurface.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                // Header
-                Padding(
-                  padding: const EdgeInsets.all(16),
+                
+                // Header with progress
+                Container(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(
-                            Icons.school,
-                            color: theme.colorScheme.primary,
-                            size: 24,
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.school,
+                              color: colorScheme.primary,
+                              size: 24,
+                            ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 12),
                           Expanded(
-                            child: Text(
-                              section.title,
-                              style: theme.textTheme.headlineSmall
-                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  section.title,
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${section.lessons.length} lessons • ${section.time.isNotEmpty ? section.time : 'Self-paced'}',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: colorScheme.onSurface.withOpacity(0.7),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${section.lessons.length} lessons${hasMcqs ? ' • Interactive quizzes available' : ''}${section.time.isNotEmpty ? ' • ~${section.time}' : ''}',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withAlpha(153),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Progress bar
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: colorScheme.primary.withOpacity(0.1),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Your Progress',
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                ),
+                                Text(
+                                  '${(progressPercentage * 100).round()}%',
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            LinearProgressIndicator(
+                              value: progressPercentage,
+                              backgroundColor: colorScheme.outline.withOpacity(0.2),
+                              valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '$completedLessons of $totalLessons lessons completed${totalQuizAttempts > 0 ? ' • $totalQuizAttempts quiz attempts' : ''}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurface.withOpacity(0.7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Next action recommendation
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              colorScheme.secondary.withOpacity(0.1),
+                              colorScheme.secondary.withOpacity(0.05),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: colorScheme.secondary.withOpacity(0.2),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: colorScheme.secondary.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                Icons.lightbulb_outline,
+                                color: colorScheme.secondary,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Recommended Next',
+                                    style: theme.textTheme.labelMedium?.copyWith(
+                                      color: colorScheme.secondary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    nextAction,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: colorScheme.onSurface,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-                // Study items list
+                
+                // Learning path
                 Expanded(
-                  child: studyItems.isNotEmpty
-                      ? ListView.builder(
-                          controller: scrollController,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                          ),
-                          itemCount: studyItems.length,
-                          itemBuilder: (context, index) {
-                            final item = studyItems[index];
-                            final isLesson = item['type'] == 'lesson';
-                            final lesson = item['lesson'] as Lesson;
-                            final itemIndex = item['index'] as int;
-
-                            if (isLesson) {
-                              return _buildLessonItem(
-                                lesson,
-                                itemIndex,
-                                section,
-                                theme,
-                                chapterProgress?.completedLessons
-                                        .contains(lesson.id) ??
-                                    false,
-                              );
-                            } else {
-                              final bestAttempt =
-                                  item['bestAttempt'] as QuizAttempt?;
-                              return _buildQuizItem(
-                                lesson,
-                                itemIndex,
-                                section,
-                                theme,
-                                bestAttempt,
-                              );
-                            }
-                          },
-                        )
-                      : Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(32),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.school_outlined,
-                                  size: 64,
-                                  color: Colors.grey[400],
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'No Content Available',
-                                  style: theme.textTheme.titleLarge
-                                      ?.copyWith(color: Colors.grey[600]),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Generate content to start studying',
-                                  style: theme.textTheme.bodyMedium
-                                      ?.copyWith(color: Colors.grey[500]),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                  child: ListView.builder(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                    itemCount: section.lessons.length,
+                    itemBuilder: (context, index) {
+                      final lesson = section.lessons[index];
+                      return _buildLearningPathItem(
+                        lesson,
+                        index,
+                        section,
+                        theme,
+                        chapterProgress,
+                        hasMcqs,
+                        hasFlashcards,
+                        nextLessonIndex == index,
+                      );
+                    },
+                  ),
                 ),
-                // Bottom padding for safe area
-                const SizedBox(height: 16),
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildLearningPathItem(
+    Lesson lesson,
+    int index,
+    Section section,
+    ThemeData theme,
+    ChapterProgress? chapterProgress,
+    bool hasMcqs,
+    bool hasFlashcards,
+    bool isRecommended,
+  ) {
+    final colorScheme = theme.colorScheme;
+    final isCompleted = chapterProgress?.completedLessons.contains(lesson.id) ?? false;
+    final quizAttempts = chapterProgress?.quizAttempts[lesson.id] ?? [];
+    final bestQuizScore = quizAttempts.isNotEmpty 
+        ? quizAttempts.map((a) => a.scorePercentage).reduce((a, b) => a > b ? a : b)
+        : null;
+    
+    // Determine the current step in the learning path (lesson → flashcards → quiz)
+    String currentStep = 'lesson';
+    if (isCompleted && hasFlashcards && !hasMcqs) {
+      currentStep = 'flashcards'; // If no quiz, go to flashcards after lesson
+    } else if (isCompleted && hasFlashcards && hasMcqs && quizAttempts.isEmpty) {
+      currentStep = 'flashcards'; // Do flashcards before quiz
+    } else if (isCompleted && hasFlashcards && hasMcqs && quizAttempts.isNotEmpty) {
+      currentStep = 'completed'; // All steps done
+    } else if (isCompleted && !hasFlashcards && hasMcqs && quizAttempts.isEmpty) {
+      currentStep = 'quiz'; // No flashcards, go straight to quiz
+    } else if (isCompleted && !hasFlashcards && hasMcqs && quizAttempts.isNotEmpty) {
+      currentStep = 'completed'; // No flashcards, quiz done
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Lesson number and title
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: isCompleted 
+                      ? colorScheme.primary 
+                      : isRecommended 
+                          ? colorScheme.secondary
+                          : colorScheme.outline.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Center(
+                  child: isCompleted
+                      ? Icon(
+                          Icons.check,
+                          color: colorScheme.onPrimary,
+                          size: 20,
+                        )
+                      : Text(
+                          '${index + 1}',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: isRecommended 
+                                ? colorScheme.onSecondary
+                                : colorScheme.onSurface.withOpacity(0.7),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      lesson.title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    if (isRecommended)
+                      Text(
+                        'Recommended next',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.secondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Learning path steps
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isRecommended 
+                    ? colorScheme.secondary.withOpacity(0.3)
+                    : colorScheme.outline.withOpacity(0.2),
+                width: isRecommended ? 2 : 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: colorScheme.shadow.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // Step 1: Read Lesson
+                _buildPathStep(
+                  context: context,
+                  theme: theme,
+                  stepNumber: 1,
+                  title: 'Read Lesson',
+                  subtitle: lesson.generated ? 'Tap to start reading' : 'Content not ready',
+                  icon: Icons.menu_book,
+                  isCompleted: isCompleted,
+                  isActive: currentStep == 'lesson',
+                  isEnabled: lesson.generated,
+                  onTap: lesson.generated ? () {
+                    Navigator.pop(context);
+                    _navigateToSingleLesson(section, lesson);
+                  } : null,
+                ),
+
+                if (hasFlashcards) ...[
+                  _buildStepConnector(theme, isCompleted),
+                  
+                  // Step 2: Study Flashcards
+                  _buildPathStep(
+                    context: context,
+                    theme: theme,
+                    stepNumber: 2,
+                    title: 'Study Flashcards',
+                    subtitle: isCompleted
+                        ? 'Reinforce your learning'
+                        : 'Complete lesson first',
+                    icon: Icons.style,
+                    isCompleted: false, // We don't track flashcard completion yet
+                    isActive: currentStep == 'flashcards',
+                    isEnabled: isCompleted,
+                    onTap: isCompleted ? () {
+                      Navigator.pop(context);
+                      _navigateToFlashcards(section, lesson);
+                    } : null,
+                  ),
+                ],
+
+                if (hasMcqs) ...[
+                  _buildStepConnector(theme, isCompleted && (!hasFlashcards || currentStep != 'flashcards')),
+                  
+                  // Step 3: Take Quiz (after flashcards if available)
+                  _buildPathStep(
+                    context: context,
+                    theme: theme,
+                    stepNumber: hasFlashcards ? 3 : 2,
+                    title: 'Take Quiz',
+                    subtitle: bestQuizScore != null 
+                        ? 'Best score: ${bestQuizScore!.round()}%'
+                        : isCompleted 
+                            ? 'Test your knowledge'
+                            : 'Complete lesson first',
+                    icon: Icons.quiz,
+                    isCompleted: quizAttempts.isNotEmpty,
+                    isActive: currentStep == 'quiz',
+                    isEnabled: isCompleted,
+                    onTap: isCompleted ? () {
+                      Navigator.pop(context);
+                      _navigateToQuiz(section, lesson);
+                    } : null,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPathStep({
+    required BuildContext context,
+    required ThemeData theme,
+    required int stepNumber,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isCompleted,
+    required bool isActive,
+    required bool isEnabled,
+    required VoidCallback? onTap,
+  }) {
+    final colorScheme = theme.colorScheme;
+    
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: isEnabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            // Step indicator
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isCompleted
+                    ? colorScheme.primary
+                    : isActive
+                        ? colorScheme.secondary
+                        : isEnabled
+                            ? colorScheme.outline.withOpacity(0.1)
+                            : colorScheme.outline.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                isCompleted ? Icons.check : icon,
+                color: isCompleted
+                    ? colorScheme.onPrimary
+                    : isActive
+                        ? colorScheme.onSecondary
+                        : isEnabled
+                            ? colorScheme.onSurface.withOpacity(0.7)
+                            : colorScheme.onSurface.withOpacity(0.3),
+                size: 20,
+              ),
+            ),
+            
+            const SizedBox(width: 12),
+            
+            // Content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: isEnabled
+                          ? colorScheme.onSurface
+                          : colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: isEnabled
+                          ? colorScheme.onSurface.withOpacity(0.7)
+                          : colorScheme.onSurface.withOpacity(0.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Arrow or check
+            if (isEnabled)
+              Icon(
+                Icons.arrow_forward_ios,
+                color: colorScheme.onSurface.withOpacity(0.5),
+                size: 16,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepConnector(ThemeData theme, bool isCompleted) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          const SizedBox(width: 20),
+          Container(
+            width: 2,
+            height: 16,
+            color: isCompleted
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outline.withOpacity(0.3),
+          ),
+          const SizedBox(width: 18),
+        ],
       ),
     );
   }
@@ -983,6 +1389,123 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
       // Refresh progress when returning from quiz
       if (result != null && result is Map<String, dynamic> && result['quizCompleted'] == true) {
         Logger.i(_tag, 'Quiz completed from modal. Score: ${result['score']}/${result['totalQuestions']}');
+      }
+      
+      await _handleRefresh();
+    });
+  }
+
+  Widget _buildFlashcardItem(
+    Lesson lesson,
+    int itemIndex,
+    Section section,
+    ThemeData theme,
+  ) {
+    final colorScheme = theme.colorScheme;
+    // Use consistent card color for all flashcard items
+    final cardColor = colorScheme.cardColor;
+    final flashcardColor = theme.colorScheme.tertiary;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Card(
+        elevation: 2,
+        color: cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: flashcardColor.withOpacity(0.3),
+            width: 2,
+          ),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            Navigator.pop(context); // Close the modal
+            _navigateToFlashcards(section, lesson);
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // Flashcard icon
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: flashcardColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.style,
+                    color: flashcardColor,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Flashcards: ${lesson.title}',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Study with interactive flashcards',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Arrow
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: colorScheme.onSurface.withOpacity(0.5),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToFlashcards(Section section, Lesson lesson) {
+    final chapterId = _extractChapterId(section.id);
+
+    // Find the lesson index within the section
+    final lessonIndex = section.lessons.indexWhere((l) => l.id == lesson.id);
+
+    Logger.i(
+      _tag,
+      'Navigating to flashcards: lesson="${lesson.title}", index=$lessonIndex, sectionLessons=${section.lessons.length}',
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FlashcardScreen(
+          courseId: widget.courseId,
+          chapterId: chapterId,
+          lessonId: lesson.id,
+          lessonTitle: lesson.title,
+          section: section,
+          currentLessonIndex: lessonIndex >= 0 ? lessonIndex : null,
+        ),
+      ),
+    ).then((result) async {
+      // Handle any result from flashcard screen if needed
+      if (result != null && result is Map<String, dynamic> && result['flashcardsCompleted'] == true) {
+        Logger.i(_tag, 'Flashcards completed from modal');
       }
       
       await _handleRefresh();
@@ -1489,83 +2012,101 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
   }
 
   Widget _buildProgressSummary(ThemeData theme) {
+    final colorScheme = theme.colorScheme;
     final progress = _userProgress!;
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.colorScheme.primary.withOpacity(0.2)),
+        gradient: LinearGradient(
+          colors: [
+            colorScheme.primary.withValues(alpha: 0.1),
+            colorScheme.secondary.withValues(alpha: 0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: colorScheme.primary.withValues(alpha: 0.2),
+        ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.trending_up,
+                  color: colorScheme.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Your Learning Journey',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    Text(
+                      _getJourneyDescription(),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Progress indicators
+          Row(
+            children: [
+              Expanded(
+                child: _buildProgressItem(
+                  theme,
+                  Icons.menu_book,
                   '${progress.completedLessons}',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.primary,
-                  ),
+                  'Lessons read',
+                  colorScheme.primary,
                 ),
-                Text(
-                  'Lessons\nCompleted',
-                  style: theme.textTheme.bodySmall,
-                  textAlign: TextAlign.center,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildProgressItem(
+                  theme,
+                  Icons.style,
+                  _getFlashcardSessions().toString(),
+                  'Flashcard sessions',
+                  colorScheme.tertiary,
                 ),
-              ],
-            ),
-          ),
-          Container(
-            height: 30,
-            width: 1,
-            color: theme.colorScheme.outline.withOpacity(0.3),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildProgressItem(
+                  theme,
+                  Icons.quiz,
                   '${progress.totalQuizzesTaken}',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.secondary,
-                  ),
+                  'Quizzes taken',
+                  colorScheme.secondary,
                 ),
-                Text(
-                  'Quizzes\nTaken',
-                  style: theme.textTheme.bodySmall,
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-          Container(
-            height: 30,
-            width: 1,
-            color: theme.colorScheme.outline.withOpacity(0.3),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
-                  '${progress.averageQuizScore.round()}%',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
-                  ),
-                ),
-                Text(
-                  'Avg\nScore',
-                  style: theme.textTheme.bodySmall,
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1573,6 +2114,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
   }
 
   Widget _buildStudyRecommendationCard(ThemeData theme) {
+    final colorScheme = theme.colorScheme;
     final recommendation = _studyRecommendation;
 
     // Check for background generations
@@ -1580,130 +2122,207 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
       widget.courseId,
     );
 
-    // Show card if there's content to study, suggestions, OR background generations
-    if (recommendation != null &&
-        (!recommendation.hasContentToStudy && !recommendation.hasSuggestions) &&
-        backgroundGenerations.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    // If no recommendation but have background generations, still show the card
+    // Don't show if no meaningful content
     if (recommendation == null && backgroundGenerations.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    // Add logging to debug background generations
-    Logger.d(
-      _tag,
-      'Building study recommendation card',
-      data: {
-        'hasRecommendation': recommendation != null,
-        'hasContentToStudy': recommendation?.hasContentToStudy ?? false,
-        'hasSuggestions': recommendation?.hasSuggestions ?? false,
-        'isGenerating': recommendation?.isGenerating ?? false,
-        'backgroundGenerationsCount': backgroundGenerations.length,
-        'backgroundGenerations': backgroundGenerations,
-      },
-    );
+    if (recommendation != null &&
+        !recommendation.hasContentToStudy &&
+        !recommendation.hasSuggestions &&
+        backgroundGenerations.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-    return Card(
-      color: theme.colorScheme.cardColor,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.lightbulb_outline,
-                  color: theme.colorScheme.primary,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            colorScheme.secondary.withValues(alpha: 0.1),
+            colorScheme.tertiary.withValues(alpha: 0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: colorScheme.secondary.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colorScheme.secondary.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.smart_toy,
+                  color: colorScheme.secondary,
                   size: 20,
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  backgroundGenerations.isNotEmpty && recommendation == null
-                      ? 'Content Generation'
-                      : 'Study Recommendation',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (recommendation?.currentToStudy != null) ...[
-              Text(
-                '📚 Continue studying your current chapter',
-                style: theme.textTheme.bodyMedium,
               ),
-              const SizedBox(height: 8),
-            ],
-            if (recommendation?.isGenerating == true) ...[
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(
-                      height: 16,
-                      width: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          theme.colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
                     Text(
-                      'Content is being prepared in the background...',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            // Show background generations
-            if (backgroundGenerations.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      height: 16,
-                      width: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Colors.blue.shade700,
-                        ),
+                      'Your AI Study Coach',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${backgroundGenerations.length} chapter${backgroundGenerations.length > 1 ? 's' : ''} generating in background',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: Colors.blue.shade700,
-                        ),
+                    Text(
+                      _getSmartRecommendationText(),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface.withValues(alpha: 0.8),
                       ),
                     ),
                   ],
                 ),
               ),
             ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Active generation indicator
+          if (backgroundGenerations.isNotEmpty) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colorScheme.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: colorScheme.primary.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    height: 16,
+                    width: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Creating Your Content',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                        Text(
+                          '${backgroundGenerations.length} chapter${backgroundGenerations.length > 1 ? 's' : ''} being prepared in the background',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurface.withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
+        ],
+      ),
+    );
+  }
+
+  String _getSmartRecommendationText() {
+    final totalLessons = _userProgress?.completedLessons ?? 0;
+    final totalQuizzes = _userProgress?.totalQuizzesTaken ?? 0;
+    
+    if (totalLessons == 0) {
+      return "Ready to start your learning journey?";
+    } else if (totalLessons > 0 && totalQuizzes == 0) {
+      return "Time to test what you've learned!";
+    } else {
+      return "Keep up the great progress!";
+    }
+  }
+
+  String _getJourneyDescription() {
+    final totalLessons = _userProgress?.completedLessons ?? 0;
+    final totalQuizzes = _userProgress?.totalQuizzesTaken ?? 0;
+    final avgScore = _userProgress?.averageQuizScore ?? 0.0;
+    
+    if (totalLessons == 0) {
+      return "Begin your personalized learning experience";
+    } else if (totalLessons > 0 && totalQuizzes == 0) {
+      return "You've completed $totalLessons lesson${totalLessons > 1 ? 's' : ''}";
+    } else if (avgScore > 80) {
+      return "Excellent performance! ${avgScore.round()}% average quiz score";
+    } else {
+      return "$totalLessons lessons • $totalQuizzes quizzes • ${avgScore.round()}% avg score";
+    }
+  }
+
+  int _getFlashcardSessions() {
+    // This would track flashcard sessions when we implement tracking
+    // For now, estimate based on lesson completion
+    final lessonsCompleted = _userProgress?.completedLessons ?? 0;
+    return (lessonsCompleted * 0.6).round(); // Estimate 60% flashcard usage
+  }
+
+  Widget _buildProgressItem(
+    ThemeData theme,
+    IconData icon,
+    String value,
+    String label,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withValues(alpha: 0.2),
         ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            icon,
+            color: color,
+            size: 20,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }

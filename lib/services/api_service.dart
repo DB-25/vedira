@@ -108,6 +108,45 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final dynamic data = json.decode(response.body);
+
+        // ====== COMPREHENSIVE COURSE GENERATION RESPONSE LOGGING ======
+        Logger.i(_tag, '🔍 COMPLETE /generate-course-plan API RESPONSE:');
+        Logger.i(_tag, '📋 Raw Response Body Length: ${response.body.length} characters');
+        
+        // Log the complete response structure
+        final prettyJson = const JsonEncoder.withIndent('  ').convert(data);
+        Logger.i(_tag, '📄 Complete Response Structure:\n$prettyJson');
+        
+        // Log all top-level keys
+        if (data is Map<String, dynamic>) {
+          Logger.i(_tag, '🔑 Top-level keys in generate response: ${data.keys.toList()}');
+          
+          // Check for any new or unknown keys in generation response
+          final knownGenerationKeys = ['courseID', 'title', 'description', 'sections', 'lessons'];
+          final allKeys = data.keys.toSet();
+          final unknownKeys = allKeys.difference(knownGenerationKeys.toSet());
+          
+          if (unknownKeys.isNotEmpty) {
+            Logger.i(_tag, '🆕 NEW/UNKNOWN GENERATION KEYS DETECTED: $unknownKeys');
+            
+            // Log details of unknown keys
+            for (final key in unknownKeys) {
+              final value = data[key];
+              Logger.i(_tag, '🔍 Unknown generation key "$key" type: ${value.runtimeType}');
+              if (value is List) {
+                Logger.i(_tag, '🔍 Unknown generation key "$key" list length: ${value.length}');
+              } else if (value is Map) {
+                Logger.i(_tag, '🔍 Unknown generation key "$key" map keys: ${(value as Map).keys.toList()}');
+              } else {
+                Logger.i(_tag, '🔍 Unknown generation key "$key" value: $value');
+              }
+            }
+          } else {
+            Logger.i(_tag, '✅ All generation keys are known and expected');
+          }
+        }
+        // ===== END COMPREHENSIVE LOGGING =====
+
         final course = Course.fromJson(data);
         Logger.d(
           _tag,
@@ -192,6 +231,45 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final dynamic data = json.decode(response.body);
+
+        // ====== COMPREHENSIVE DOCUMENT COURSE GENERATION RESPONSE LOGGING ======
+        Logger.i(_tag, '🔍 COMPLETE /generate-course-plan (FROM DOCUMENT) API RESPONSE:');
+        Logger.i(_tag, '📋 Raw Response Body Length: ${response.body.length} characters');
+        
+        // Log the complete response structure
+        final prettyJson = const JsonEncoder.withIndent('  ').convert(data);
+        Logger.i(_tag, '📄 Complete Document Generation Response Structure:\n$prettyJson');
+        
+        // Log all top-level keys
+        if (data is Map<String, dynamic>) {
+          Logger.i(_tag, '🔑 Top-level keys in document generation response: ${data.keys.toList()}');
+          
+          // Check for any new or unknown keys in document generation response
+          final knownDocumentGenerationKeys = ['courseID', 'title', 'description', 'sections', 'lessons'];
+          final allKeys = data.keys.toSet();
+          final unknownKeys = allKeys.difference(knownDocumentGenerationKeys.toSet());
+          
+          if (unknownKeys.isNotEmpty) {
+            Logger.i(_tag, '🆕 NEW/UNKNOWN DOCUMENT GENERATION KEYS DETECTED: $unknownKeys');
+            
+            // Log details of unknown keys
+            for (final key in unknownKeys) {
+              final value = data[key];
+              Logger.i(_tag, '🔍 Unknown document generation key "$key" type: ${value.runtimeType}');
+              if (value is List) {
+                Logger.i(_tag, '🔍 Unknown document generation key "$key" list length: ${value.length}');
+              } else if (value is Map) {
+                Logger.i(_tag, '🔍 Unknown document generation key "$key" map keys: ${(value as Map).keys.toList()}');
+              } else {
+                Logger.i(_tag, '🔍 Unknown document generation key "$key" value: $value');
+              }
+            }
+          } else {
+            Logger.i(_tag, '✅ All document generation keys are known and expected');
+          }
+        }
+        // ===== END COMPREHENSIVE LOGGING =====
+
         final course = Course.fromJson(data);
         Logger.d(
           _tag,
@@ -254,6 +332,54 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final dynamic data = json.decode(response.body);
+
+        // ====== COMPREHENSIVE API RESPONSE LOGGING ======
+        Logger.i(_tag, '🔍 COMPLETE /get-course-plan API RESPONSE:');
+        Logger.i(_tag, '📋 Raw Response Body Length: ${response.body.length} characters');
+        
+        // Log the complete response structure
+        final prettyJson = const JsonEncoder.withIndent('  ').convert(data);
+        Logger.i(_tag, '📄 Complete Response Structure:\n$prettyJson');
+        
+        // Log all top-level keys
+        if (data is Map<String, dynamic>) {
+          Logger.i(_tag, '🔑 Top-level keys in response: ${data.keys.toList()}');
+          
+          // Check for any new or unknown keys
+          final knownKeys = ['course_id', 'course_title', 'chapters', 'sections', 'lessons'];
+          final allKeys = data.keys.toSet();
+          final unknownKeys = allKeys.difference(knownKeys.toSet());
+          
+          if (unknownKeys.isNotEmpty) {
+            Logger.i(_tag, '🆕 NEW/UNKNOWN KEYS DETECTED: $unknownKeys');
+            
+            // Log details of unknown keys
+            for (final key in unknownKeys) {
+              final value = data[key];
+              Logger.i(_tag, '🔍 Unknown key "$key" type: ${value.runtimeType}');
+              if (value is List) {
+                Logger.i(_tag, '🔍 Unknown key "$key" list length: ${value.length}');
+              } else if (value is Map) {
+                Logger.i(_tag, '🔍 Unknown key "$key" map keys: ${(value as Map).keys.toList()}');
+              } else {
+                Logger.i(_tag, '🔍 Unknown key "$key" value: $value');
+              }
+            }
+          } else {
+            Logger.i(_tag, '✅ All keys are known and expected');
+          }
+          
+          // Log details of known keys for comparison
+          for (final key in knownKeys) {
+            if (data.containsKey(key)) {
+              final value = data[key];
+              Logger.i(_tag, '✅ Known key "$key": ${value.runtimeType}, ${value is List ? 'length ${value.length}' : value is Map ? 'map with ${(value as Map).keys.length} keys' : 'value: $value'}');
+            } else {
+              Logger.i(_tag, '❌ Expected key "$key" is missing');
+            }
+          }
+        }
+        // ===== END COMPREHENSIVE LOGGING =====
 
         // Parse the response using LessonPlan model
         final lessonPlan = LessonPlan.fromJson(data);
