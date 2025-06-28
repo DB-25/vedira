@@ -132,6 +132,90 @@ class ApiService {
     }
   }
 
+  // Generate a course plan from uploaded document
+  Future<Course> generateCoursePlanFromDocument({
+    required String topic,
+    required String timeline,
+    required String difficulty,
+    required String documentType,
+    required String documentContent,
+    String? customInstructions,
+  }) async {
+    // Check if internet is available
+    bool isConnected = await _connectivityService.isInternetAvailable();
+    if (!isConnected) {
+      final error = AppConstants.errorNoInternet;
+      Logger.e(_tag, error);
+      throw Exception(error);
+    }
+
+    final endpoint = '/generate-course-plan';
+    final url = '$baseUrl$endpoint';
+
+    final body = {
+      'topic': topic,
+      'timeline': timeline,
+      'difficulty': difficulty,
+      'custom_instructions': customInstructions ?? '',
+      'document_type': documentType,
+      'document_content': documentContent,
+    };
+
+    // Conditionally append user_id for testing
+    if (AppConstants.useBackwardUserId) {
+      body['user_id'] = 'rs';
+    }
+
+    Logger.i(_tag, 'Generating course plan from document for topic: $topic', 
+      data: {
+        'topic': topic,
+        'timeline': timeline,
+        'difficulty': difficulty,
+        'document_type': documentType,
+        'document_size': '${documentContent.length} chars',
+        'has_custom_instructions': customInstructions?.isNotEmpty ?? false,
+      });
+
+    try {
+      final response = await _apiClient.post(url, body: body);
+
+      Logger.api(
+        'POST',
+        endpoint,
+        requestBody: {
+          ...body,
+          'document_content': '[BASE64_CONTENT_${documentContent.length}_CHARS]'
+        },
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+
+      if (response.statusCode == 200) {
+        final dynamic data = json.decode(response.body);
+        final course = Course.fromJson(data);
+        Logger.d(
+          _tag,
+          'Course plan generated successfully from document',
+          data: {
+            'id': course.courseID,
+            'title': course.title,
+            'sections': course.sections?.length ?? 0,
+            'lessons': course.lessons?.length ?? 0,
+          },
+        );
+        return course;
+      } else {
+        final error = 'Error generating course from document: Status ${response.statusCode}';
+        Logger.e(_tag, error, error: response.body);
+        throw Exception(error);
+      }
+    } catch (e) {
+      final error = 'Error generating course plan from document: $e';
+      Logger.e(_tag, error, error: e, stackTrace: StackTrace.current);
+      throw Exception(error);
+    }
+  }
+
   // Get a specific course by ID using the lesson plan endpoint
   Future<Course> getCourse(String id) async {
     // Validate id parameter

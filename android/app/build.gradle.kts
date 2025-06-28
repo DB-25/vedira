@@ -15,7 +15,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.vedira.app"
+    namespace = "com.vedira.vedira"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
@@ -30,7 +30,7 @@ android {
 
     defaultConfig {
         // Unique Application ID for Vedira learning app
-        applicationId = "com.vedira.app"
+        applicationId = "com.vedira.vedira"
         // You can update the following values to match your application needs.
         // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
         minSdk = flutter.minSdkVersion

@@ -366,141 +366,158 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     return Scaffold(
       backgroundColor: bodyBackgroundColor,
-      body: RefreshIndicator(
-        onRefresh: _refreshCourses,
-        child: CustomScrollView(
-          slivers: [
-            _buildHomeAppBar(),
-          SliverPadding(
-            padding: const EdgeInsets.only(top: 16),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  return FutureBuilder<List<Course>>(
-                    future: _coursesFuture,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting ||
-                          _isLoading) {
-                        Logger.d(_tag, 'Loading courses...');
-                        return Container(
-                          height: MediaQuery.of(context).size.height * 0.6,
-                          child:
-                              const Center(child: CircularProgressIndicator()),
-                        );
-                      } else if (snapshot.hasError) {
-                        final error = snapshot.error;
-                        Logger.e(
-                          _tag,
-                          'Error loading courses',
-                          error: error,
-                          stackTrace: StackTrace.current,
-                        );
-                        return Container(
-                          height: MediaQuery.of(context).size.height * 0.6,
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.error_outline,
-                                  size: 60,
-                                  color: theme.colorScheme.error,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Error loading courses',
-                                  style: Theme.of(context).textTheme.titleLarge,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  error.toString(),
-                                  style: Theme.of(context).textTheme.bodyMedium,
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 24),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    Logger.i(
-                                      _tag,
-                                      'User trying to reload courses after error',
-                                    );
-                                    _refreshCourses();
-                                  },
-                                  child: const Text('Try Again'),
-                                ),
-                              ],
-                            ),
+      body: FutureBuilder<List<Course>>(
+        future: _coursesFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting || _isLoading) {
+            Logger.d(_tag, 'Loading courses...');
+            return RefreshIndicator(
+              onRefresh: _refreshCourses,
+              child: CustomScrollView(
+                slivers: [
+                  _buildHomeAppBar(),
+                  SliverFillRemaining(
+                    child: Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          } else if (snapshot.hasError) {
+            final error = snapshot.error;
+            Logger.e(
+              _tag,
+              'Error loading courses',
+              error: error,
+              stackTrace: StackTrace.current,
+            );
+            return RefreshIndicator(
+              onRefresh: _refreshCourses,
+              child: CustomScrollView(
+                slivers: [
+                  _buildHomeAppBar(),
+                  SliverFillRemaining(
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 60,
+                            color: theme.colorScheme.error,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Error loading courses',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            error.toString(),
+                            style: Theme.of(context).textTheme.bodyMedium,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 24),
+                          ElevatedButton(
+                            onPressed: () {
+                              Logger.i(
+                                _tag,
+                                'User trying to reload courses after error',
+                              );
+                              _refreshCourses();
+                            },
+                            child: const Text('Try Again'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            Logger.w(_tag, 'No courses available');
+            return RefreshIndicator(
+              onRefresh: _refreshCourses,
+              child: CustomScrollView(
+                slivers: [
+                  _buildHomeAppBar(),
+                  SliverFillRemaining(
+                    child: _buildOnboardingExperience(),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final courses = snapshot.data!;
+          Logger.i(_tag, 'Loaded ${courses.length} courses');
+
+          // Update local state when data loads
+          if (_currentCourses == null ||
+              _currentCourses!.length != courses.length) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              setState(() {
+                _currentCourses = List.from(courses);
+              });
+            });
+          }
+
+          // Use local state if available, otherwise use snapshot data
+          final displayCourses = _currentCourses ?? courses;
+
+          return RefreshIndicator(
+            onRefresh: _refreshCourses,
+            child: CustomScrollView(
+              slivers: [
+                _buildHomeAppBar(),
+                SliverPadding(
+                  padding: const EdgeInsets.only(top: 16),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        if (index >= displayCourses.length)
+                          return const SizedBox.shrink();
+
+                        final course = displayCourses[index];
+                        final isStarred =
+                            _starredCourseIds.contains(course.courseID);
+
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                          margin: EdgeInsets.only(
+                            left: 16.0,
+                            right: 16.0,
+                            top: index == 0
+                                ? 0
+                                : 4.0, // Reduced top margin for cards
+                            bottom: 4.0, // Reduced bottom margin
+                          ),
+                          child: CourseCard(
+                            key: ValueKey(course.courseID),
+                            course: course,
+                            isStarred: isStarred,
+                            onDeleted: () {
+                              Logger.i(
+                                  _tag, 'Course deleted, refreshing course list');
+                              _refreshCourses();
+                            },
+                            onStarToggle: (newStarState) {
+                              _handleStarToggle(course.courseID, newStarState);
+                            },
                           ),
                         );
-                      } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                        Logger.w(_tag, 'No courses available');
-                        return _buildOnboardingExperience();
-                      }
-
-                      final courses = snapshot.data!;
-                      Logger.i(_tag, 'Loaded ${courses.length} courses');
-
-                      // Update local state when data loads
-                      if (_currentCourses == null ||
-                          _currentCourses!.length != courses.length) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          setState(() {
-                            _currentCourses = List.from(courses);
-                          });
-                        });
-                      }
-
-                      // Use local state if available, otherwise use snapshot data
-                      final displayCourses = _currentCourses ?? courses;
-
-                      if (index >= displayCourses.length)
-                        return const SizedBox.shrink();
-
-                      final course = displayCourses[index];
-                      final isStarred =
-                          _starredCourseIds.contains(course.courseID);
-
-                      return AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                        margin: EdgeInsets.only(
-                          left: 16.0,
-                          right: 16.0,
-                          top: index == 0
-                              ? 0
-                              : 4.0, // Reduced top margin for cards
-                          bottom: 4.0, // Reduced bottom margin
-                        ),
-                        child: CourseCard(
-                          key: ValueKey(course.courseID),
-                          course: course,
-                          isStarred: isStarred,
-                          onDeleted: () {
-                            Logger.i(
-                                _tag, 'Course deleted, refreshing course list');
-                            _refreshCourses();
-                          },
-                          onStarToggle: (newStarState) {
-                            _handleStarToggle(course.courseID, newStarState);
-                          },
-                        ),
-                      );
-                    },
-                  );
-                },
-                childCount: () {
-                  // Get the course count for proper itemCount
-                  if (_currentCourses != null) {
-                    return _currentCourses!.length;
-                  }
-                  // Fallback - we'll handle this in the builder
-                  return 10; // Reasonable fallback, will be limited by null check in builder
-                }(),
-              ),
+                      },
+                      childCount: displayCourses.length,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-        ),
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
@@ -513,7 +530,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         icon: const Icon(Icons.add_rounded),
         label: const Text('New Course'),
         backgroundColor:
-            colorScheme.action, // Use action color for primary action buttons
+            colorScheme.primary, // Use action color for primary action buttons
         foregroundColor: AppConstants.paletteNeutral000,
       ),
     );

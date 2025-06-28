@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
 import '../services/secure_storage_service.dart';
 import '../utils/constants.dart';
 import '../utils/logger.dart';
+import '../utils/theme_manager.dart';
 import 'verification_screen.dart';
 import 'home_screen.dart';
 import 'privacy_policy_screen.dart';
@@ -14,7 +16,7 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -29,17 +31,83 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscureConfirmPassword = true;
   bool _rememberMe = false;
   bool _isLoadingCredentials = true;
+  bool _isModeTransitioning = false;
+
+  late AnimationController _fadeController;
+  late AnimationController _slideController;
+  late AnimationController _modeTransitionController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _modeSlideAnimation;
+  late Animation<double> _modeOpacityAnimation;
 
   static const String _tag = 'LoginScreen';
 
   @override
   void initState() {
     super.initState();
+    _setupAnimations();
     _loadSavedCredentials();
+  }
+
+  void _setupAnimations() {
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _modeTransitionController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeInOut,
+    ));
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0.0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _slideController,
+      curve: Curves.easeOutCubic,
+    ));
+
+    _modeSlideAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _modeTransitionController,
+      curve: Curves.easeInOutCubic,
+    ));
+
+    _modeOpacityAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _modeTransitionController,
+      curve: const Interval(0.5, 1.0, curve: Curves.easeIn),
+    ));
+
+    _fadeController.forward();
+    _modeTransitionController.forward();
+    Future.delayed(const Duration(milliseconds: 200), () {
+      _slideController.forward();
+    });
   }
 
   @override
   void dispose() {
+    _fadeController.dispose();
+    _slideController.dispose();
+    _modeTransitionController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -77,6 +145,30 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     }
+  }
+
+  Future<void> _toggleMode() async {
+    if (_isModeTransitioning) return; // Prevent multiple toggles during transition
+    
+    setState(() => _isModeTransitioning = true);
+    
+    // Add haptic feedback
+    HapticFeedback.lightImpact();
+    
+    // Start the transition animation
+    await _modeTransitionController.reverse();
+    
+    // Update the state in the middle of the animation
+    setState(() {
+      _isSignUpMode = !_isSignUpMode;
+      // Clear form errors when switching modes
+      _formKey.currentState?.reset();
+    });
+    
+    // Complete the transition animation
+    await _modeTransitionController.forward();
+    
+    setState(() => _isModeTransitioning = false);
   }
 
   String? _validateEmail(String? value) {
@@ -231,22 +323,371 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _toggleMode() {
-    setState(() {
-      _isSignUpMode = !_isSignUpMode;
-      _formKey.currentState?.reset();
-      if (_isSignUpMode) {
-        // Clear form when switching to sign up mode
-        _emailController.clear();
-        _passwordController.clear();
-        _confirmPasswordController.clear();
-        _phoneController.clear();
-        _rememberMe = false;
-      } else {
-        // Reload saved credentials when switching back to sign in mode
-        _loadSavedCredentials();
-      }
-    });
+  Widget _buildLogo([bool isKeyboardVisible = false]) {
+    return Container(
+      height: MediaQuery.of(context).size.height * (isKeyboardVisible ? 0.1 : 0.15),
+      width: MediaQuery.of(context).size.width * 0.6,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 50,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Image.asset(
+          'lib/assets/full_logo.png',
+          fit: BoxFit.fitWidth,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWelcomeSection(ThemeData theme, ColorScheme colorScheme) {
+    return Column(
+      children: [
+        Text(
+          _isSignUpMode ? 'Create Account' : 'Welcome Back',
+          style: theme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _isSignUpMode
+              ? 'Join the personalized learning journey'
+              : 'Sign in to continue your learning',
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: colorScheme.onSurface.withOpacity(0.7),
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+
+
+  Widget _buildFormCard(ThemeData theme, ColorScheme colorScheme) {
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: colorScheme.cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: colorScheme.outline.withOpacity(0.1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Email field
+            _buildTextField(
+              controller: _emailController,
+              label: 'Email',
+              hint: 'Enter your email address',
+              icon: Icons.email_outlined,
+              keyboardType: TextInputType.emailAddress,
+              validator: _validateEmail,
+              theme: theme,
+              colorScheme: colorScheme,
+            ),
+            const SizedBox(height: 16),
+
+            // Phone number field (only for signup)
+            if (_isSignUpMode) ...[
+              _buildTextField(
+                controller: _phoneController,
+                label: 'Phone Number',
+                hint: '+1 (555) 123-4567',
+                icon: Icons.phone_outlined,
+                keyboardType: TextInputType.phone,
+                validator: _validatePhoneNumber,
+                theme: theme,
+                colorScheme: colorScheme,
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Password field
+            _buildTextField(
+              controller: _passwordController,
+              label: 'Password',
+              hint: 'Enter your password',
+              icon: Icons.lock_outlined,
+              obscureText: _obscurePassword,
+              validator: _validatePassword,
+              theme: theme,
+              colorScheme: colorScheme,
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                  color: colorScheme.onSurface.withOpacity(0.6),
+                ),
+                onPressed: () {
+                  setState(() => _obscurePassword = !_obscurePassword);
+                },
+              ),
+            ),
+
+            // Confirm password field (only for signup)
+            if (_isSignUpMode) ...[
+              const SizedBox(height: 16),
+              _buildTextField(
+                controller: _confirmPasswordController,
+                label: 'Confirm Password',
+                hint: 'Re-enter your password',
+                icon: Icons.lock_outlined,
+                obscureText: _obscureConfirmPassword,
+                validator: _validateConfirmPassword,
+                theme: theme,
+                colorScheme: colorScheme,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                    color: colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                  onPressed: () {
+                    setState(() => _obscureConfirmPassword = !_obscureConfirmPassword);
+                  },
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 20),
+
+            // Remember Me checkbox (only for sign in)
+            if (!_isSignUpMode) ...[
+              _buildRememberMeCheckbox(theme, colorScheme),
+              const SizedBox(height: 20),
+            ],
+
+            // Submit button
+            _buildSubmitButton(theme, colorScheme),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    required String? Function(String?) validator,
+    required ThemeData theme,
+    required ColorScheme colorScheme,
+    TextInputType? keyboardType,
+    bool obscureText = false,
+    Widget? suffixIcon,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      obscureText: obscureText,
+      validator: validator,
+      style: theme.textTheme.bodyLarge?.copyWith(
+        color: colorScheme.onSurface,
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        prefixIcon: Icon(icon, color: colorScheme.primary),
+        suffixIcon: suffixIcon,
+        filled: true,
+        fillColor: colorScheme.surface.withOpacity(0.5),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.outline.withOpacity(0.3)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.outline.withOpacity(0.3)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.primary, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.error),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.error, width: 2),
+        ),
+        labelStyle: theme.textTheme.bodyMedium?.copyWith(
+          color: colorScheme.onSurface.withOpacity(0.7),
+        ),
+        hintStyle: theme.textTheme.bodyMedium?.copyWith(
+          color: colorScheme.onSurface.withOpacity(0.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
+      ),
+    );
+  }
+
+  Widget _buildRememberMeCheckbox(ThemeData theme, ColorScheme colorScheme) {
+    return InkWell(
+      onTap: _isLoading ? null : () {
+        setState(() {
+          _rememberMe = !_rememberMe;
+        });
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: _rememberMe ? colorScheme.primary : colorScheme.outline.withOpacity(0.5),
+                  width: 2,
+                ),
+                color: _rememberMe ? colorScheme.primary : Colors.transparent,
+              ),
+              child: _rememberMe
+                  ? Icon(
+                      Icons.check,
+                      size: 16,
+                      color: colorScheme.onPrimary,
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Remember me',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurface,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubmitButton(ThemeData theme, ColorScheme colorScheme) {
+    return SizedBox(
+      height: 56,
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _isLoading ? null : (_isSignUpMode ? _handleSignUp : _handleSignIn),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: colorScheme.primary,
+          foregroundColor: colorScheme.onPrimary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          elevation: _isLoading ? 0 : 4,
+          shadowColor: colorScheme.primary.withOpacity(0.3),
+          disabledBackgroundColor: colorScheme.primary.withOpacity(0.6),
+          disabledForegroundColor: colorScheme.onPrimary.withOpacity(0.7),
+        ),
+        child: _isLoading
+            ? SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: colorScheme.onPrimary,
+                ),
+              )
+            : Text(
+                _isSignUpMode ? 'Create Account' : 'Sign In',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: colorScheme.onPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildFooter(ThemeData theme, ColorScheme colorScheme) {
+    return Column(
+      children: [
+        // Switch between login and signup
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _isSignUpMode
+                  ? 'Already have an account? '
+                  : "Don't have an account? ",
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurface.withOpacity(0.7),
+              ),
+            ),
+            TextButton(
+              onPressed: (_isLoading || _isModeTransitioning) ? null : _toggleMode,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              child: _isModeTransitioning
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colorScheme.primary,
+                      ),
+                    )
+                  : Text(
+                      _isSignUpMode ? 'Sign In' : 'Sign Up',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+            ),
+          ],
+        ),
+
+        // Privacy policy link
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const PrivacyPolicyScreen(),
+              ),
+            );
+          },
+          child: Text(
+            'Privacy Policy',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurface.withOpacity(0.6),
+              decoration: TextDecoration.underline,
+            ),
+          ),
+        ),
+
+
+      ],
+    );
   }
 
   @override
@@ -257,503 +698,99 @@ class _LoginScreenState extends State<LoginScreen> {
     // Show loading indicator while credentials are being loaded
     if (_isLoadingCredentials) {
       return Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
+        backgroundColor: colorScheme.bodyBackground,
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: colorScheme.bodyBackground,
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppConstants.largePadding),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // App logo and title
-                  Icon(Icons.school, size: 80, color: colorScheme.primary),
-                  const SizedBox(height: AppConstants.defaultPadding),
-                  Center(child: Text(
-                    'Vedira',
-                    style: theme.textTheme.headlineLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),),
-                  const SizedBox(height: AppConstants.largePadding * 2),
-
-                  // Title
-                  Text(
-                    _isSignUpMode ? 'Create Account' : 'Welcome Back',
-                    style: AppConstants.headingStyle.copyWith(
-                      color: colorScheme.onSurface,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: AppConstants.smallPadding),
-                  Text(
-                    _isSignUpMode
-                        ? 'Sign up to get started'
-                        : 'Sign in to continue',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurface.withOpacity(0.7),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: AppConstants.largePadding),
-
-                  // Email field
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    validator: _validateEmail,
-                    decoration: InputDecoration(
-                      labelText: 'Email',
-                      hintText: 'Enter your email address',
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: colorScheme.outline),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: colorScheme.outline.withOpacity(0.5),
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: colorScheme.primary,
-                          width: 2,
-                        ),
-                      ),
-                      errorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: colorScheme.error),
-                      ),
-                      focusedErrorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: colorScheme.error,
-                          width: 2,
-                        ),
-                      ),
-                      filled: true,
-                      fillColor: colorScheme.surface,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AppConstants.defaultPadding),
-
-                  // Phone number field (only for signup)
-                  if (_isSignUpMode) ...[
-                    TextFormField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      textInputAction: TextInputAction.next,
-                      validator: _validatePhoneNumber,
-                      decoration: InputDecoration(
-                        labelText: 'Phone Number',
-                        hintText: '+1 (555) 123-4567',
-                        prefixIcon: const Icon(Icons.phone_outlined),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: colorScheme.outline),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: colorScheme.outline.withOpacity(0.5),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: colorScheme.primary,
-                            width: 2,
-                          ),
-                        ),
-                        errorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: colorScheme.error),
-                        ),
-                        focusedErrorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: colorScheme.error,
-                            width: 2,
-                          ),
-                        ),
-                        filled: true,
-                        fillColor: colorScheme.surface,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 16,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppConstants.defaultPadding),
-                  ],
-
-                  // Password field
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    textInputAction:
-                        _isSignUpMode
-                            ? TextInputAction.next
-                            : TextInputAction.done,
-                    validator: _validatePassword,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      hintText: 'Enter your password',
-                      prefixIcon: const Icon(Icons.lock_outlined),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility
-                              : Icons.visibility_off,
-                        ),
-                        onPressed: () {
-                          setState(() => _obscurePassword = !_obscurePassword);
-                        },
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: colorScheme.outline),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: colorScheme.outline.withOpacity(0.5),
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: colorScheme.primary,
-                          width: 2,
-                        ),
-                      ),
-                      errorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: colorScheme.error),
-                      ),
-                      focusedErrorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: colorScheme.error,
-                          width: 2,
-                        ),
-                      ),
-                      filled: true,
-                      fillColor: colorScheme.surface,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                    ),
-                  ),
-
-                  // Confirm password field (only for signup)
-                  if (_isSignUpMode) ...[
-                    const SizedBox(height: AppConstants.defaultPadding),
-                    TextFormField(
-                      controller: _confirmPasswordController,
-                      obscureText: _obscureConfirmPassword,
-                      textInputAction: TextInputAction.done,
-                      validator: _validateConfirmPassword,
-                      decoration: InputDecoration(
-                        labelText: 'Confirm Password',
-                        hintText: 'Re-enter your password',
-                        prefixIcon: const Icon(Icons.lock_outlined),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscureConfirmPassword
-                                ? Icons.visibility
-                                : Icons.visibility_off,
-                          ),
-                          onPressed: () {
-                            setState(
-                              () =>
-                                  _obscureConfirmPassword =
-                                      !_obscureConfirmPassword,
-                            );
-                          },
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: colorScheme.outline),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: colorScheme.outline.withOpacity(0.5),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: colorScheme.primary,
-                            width: 2,
-                          ),
-                        ),
-                        errorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: colorScheme.error),
-                        ),
-                        focusedErrorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: colorScheme.error,
-                            width: 2,
-                          ),
-                        ),
-                        filled: true,
-                        fillColor: colorScheme.surface,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 16,
-                        ),
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(height: AppConstants.largePadding),
-
-                  // Remember Me checkbox (only for sign in)
-                  if (!_isSignUpMode) ...[
-                    Container(
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(8),
-                          onTap:
-                              _isLoading
-                                  ? null
-                                  : () {
-                                    setState(() {
-                                      _rememberMe = !_rememberMe;
-                                    });
-                                  },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 12,
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Container(
-                                  width: 24,
-                                  height: 24,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color:
-                                          _rememberMe
-                                              ? colorScheme.primary
-                                              : colorScheme.outline.withOpacity(
-                                                0.5,
-                                              ),
-                                      width: 2,
-                                    ),
-                                    color:
-                                        _rememberMe
-                                            ? colorScheme.primary
-                                            : Colors.transparent,
-                                  ),
-                                  child:
-                                      _rememberMe
-                                          ? Icon(
-                                            Icons.check,
-                                            size: 16,
-                                            color: colorScheme.onPrimary,
-                                          )
-                                          : null,
-                                ),
-                                const SizedBox(width: 20),
-                                Expanded(
-                                  child: Text(
-                                    'Remember me',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: colorScheme.onSurface,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(height: AppConstants.largePadding),
-
-                  // Submit button
-                  SizedBox(
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed:
-                          _isLoading
-                              ? null
-                              : (_isSignUpMode ? _handleSignUp : _handleSignIn),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: colorScheme.primary,
-                        foregroundColor: colorScheme.onPrimary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: _isLoading ? 0 : 3,
-                        shadowColor: colorScheme.primary.withOpacity(0.3),
-                        disabledBackgroundColor: colorScheme.primary
-                            .withOpacity(0.6),
-                        disabledForegroundColor: colorScheme.onPrimary
-                            .withOpacity(0.7),
-                      ),
-                      child:
-                          _isLoading
-                              ? SizedBox(
-                                height: 24,
-                                width: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: colorScheme.onPrimary,
-                                ),
-                              )
-                              : Text(
-                                _isSignUpMode ? 'Sign Up' : 'Sign In',
-                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  color: colorScheme.onPrimary,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                    ),
-                  ),
-
-                  const SizedBox(height: AppConstants.largePadding),
-
-                  // Switch between login and signup
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        _isSignUpMode
-                            ? 'Already have an account? '
-                            : "Don't have an account? ",
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurface.withOpacity(0.7),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed:
-                            _isLoading
-                                ? null
-                                : () {
-                                  _toggleMode();
-                                },
-                        child: Text(
-                          _isSignUpMode ? 'Sign In' : 'Sign Up',
-                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            color: colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // Privacy policy link (especially important for signup)
-                  if (_isSignUpMode) ...[
-                    const SizedBox(height: AppConstants.defaultPadding),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: colorScheme.outline.withOpacity(0.3),
-                        ),
-                      ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+            final isKeyboardVisible = keyboardHeight > 0;
+            
+            return SingleChildScrollView(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                bottom: keyboardHeight > 0 ? 20 : 0,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight,
+                ),
+                child: IntrinsicHeight(
+                  child: FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: SlideTransition(
+                      position: _slideAnimation,
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Icon(
-                            Icons.info_outline,
-                            size: 20,
-                            color: colorScheme.primary,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'By signing up, you agree to our',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurface.withOpacity(0.7),
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder:
-                                      (context) => const PrivacyPolicyScreen(),
-                                ),
+                          // Top spacing - smaller when keyboard is visible
+                          SizedBox(height: isKeyboardVisible ? 20 : null),
+                          if (!isKeyboardVisible) const Spacer(flex: 1),
+                          
+                          // Logo - smaller when keyboard is visible
+                          Center(child: _buildLogo(isKeyboardVisible)),
+                          
+                          // Spacing after logo
+                          SizedBox(height: isKeyboardVisible ? 16 : null),
+                          if (!isKeyboardVisible) const Spacer(flex: 1),
+                          
+                          // Welcome section with simple fade transition
+                          AnimatedBuilder(
+                            animation: _modeTransitionController,
+                            builder: (context, child) {
+                              return FadeTransition(
+                                opacity: _modeOpacityAnimation,
+                                child: _buildWelcomeSection(theme, colorScheme),
                               );
                             },
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: Text(
-                              'Privacy Policy',
-                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                color: colorScheme.primary,
-                              ),
-                            ),
                           ),
+                          
+                          // Spacing after welcome
+                          SizedBox(height: isKeyboardVisible ? 16 : 20),
+                          
+                          // Form card with simple fade transition
+                          AnimatedBuilder(
+                            animation: _modeTransitionController,
+                            builder: (context, child) {
+                              return FadeTransition(
+                                opacity: _modeOpacityAnimation,
+                                child: _buildFormCard(theme, colorScheme),
+                              );
+                            },
+                          ),
+                          
+                          // Spacing before footer
+                          SizedBox(height: isKeyboardVisible ? 8 : 12),
+                          
+                          // Footer with simple fade transition
+                          AnimatedBuilder(
+                            animation: _modeTransitionController,
+                            builder: (context, child) {
+                              return FadeTransition(
+                                opacity: _modeOpacityAnimation,
+                                child: _buildFooter(theme, colorScheme),
+                              );
+                            },
+                          ),
+                          
+                          // Bottom spacing
+                          if (!isKeyboardVisible) const Spacer(flex: 1),
+                          if (isKeyboardVisible) const SizedBox(height: 20),
                         ],
                       ),
                     ),
-                  ],
-
-                  // Footer privacy link for both modes
-                  const SizedBox(height: AppConstants.largePadding),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const PrivacyPolicyScreen(),
-                        ),
-                      );
-                    },
-                    child: Text(
-                      'Privacy Policy',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurface.withOpacity(0.6),
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );

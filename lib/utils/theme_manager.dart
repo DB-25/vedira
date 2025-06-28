@@ -39,7 +39,7 @@ extension AppColorScheme on ColorScheme {
 
   // Body background with subtle primary tint
   Color get bodyBackground => brightness == Brightness.light
-      ? Color.alphaBlend(primary.withValues(alpha: 0.25), surface)
+      ? Color.alphaBlend(primary.withValues(alpha: 0.1), surface)
       : Color.alphaBlend(surface.withValues(alpha: 0.9), surface);
 
   // Consistent card color with glass-morphism effect
@@ -55,7 +55,7 @@ class ThemeManager extends ChangeNotifier {
   static const String _themePreferenceKey = 'app_theme_mode';
   static const String _tag = 'ThemeManager';
 
-  AppThemeMode _currentTheme = AppThemeMode.dark; // Default: Dark mode
+  AppThemeMode _currentTheme = AppThemeMode.light; // Default: Light mode
   bool _initialized = false;
   SharedPreferences? _prefs;
   final Completer<void> _initializedCompleter = Completer<void>();
@@ -93,7 +93,7 @@ class ThemeManager extends ChangeNotifier {
       await _loadThemePreference();
     } catch (e) {
       Logger.e(_tag, 'Error initializing SharedPreferences', error: e);
-      _currentTheme = AppThemeMode.dark;
+      _currentTheme = AppThemeMode.light;
       _initialized = true;
       if (!_initializedCompleter.isCompleted) {
         _initializedCompleter.complete();
@@ -105,7 +105,7 @@ class ThemeManager extends ChangeNotifier {
   Future<void> _loadThemePreference() async {
     if (_prefs == null) {
       Logger.w(_tag, 'Cannot load preferences - SharedPreferences not initialized');
-      _currentTheme = AppThemeMode.dark;
+      _currentTheme = AppThemeMode.light;
       _initialized = true;
       if (!_initializedCompleter.isCompleted) {
         _initializedCompleter.complete();
@@ -121,7 +121,7 @@ class ThemeManager extends ChangeNotifier {
       if (savedTheme != null) {
         _currentTheme = AppThemeMode.values.firstWhere(
           (theme) => theme.toString() == savedTheme,
-          orElse: () => AppThemeMode.dark,
+          orElse: () => AppThemeMode.light,
         );
       }
 
@@ -133,7 +133,7 @@ class ThemeManager extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       Logger.e(_tag, 'Error loading theme preference', error: e);
-      _currentTheme = AppThemeMode.dark;
+      _currentTheme = AppThemeMode.light;
       _initialized = true;
       if (!_initializedCompleter.isCompleted) {
         _initializedCompleter.complete();
