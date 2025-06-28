@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import '../screens/course_details_screen.dart';
 import '../services/api_service.dart';
 import '../utils/logger.dart';
@@ -207,36 +208,82 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
     setState(() => _isUploadingFile = true);
     
     try {
+      Logger.i(_tag, 'Attempting to pick document');
+      
+      // Check if file picker is available
+      if (FilePicker.platform == null) {
+        throw Exception('File picker not available on this platform');
+      }
+      
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'doc', 'docx', 'txt', 'csv', 'xlsx', 'jpg', 'jpeg', 'png'],
         allowMultiple: false,
+        withData: true, // Ensure we get file data
       );
 
-      if (result != null && result.files.single.path != null) {
-        final file = File(result.files.single.path!);
-        final bytes = await file.readAsBytes();
+      if (result != null && result.files.isNotEmpty) {
+        final selectedFile = result.files.first;
+        
+        // Check if we have file bytes or path
+        Uint8List? bytes;
+        if (selectedFile.bytes != null) {
+          bytes = selectedFile.bytes!;
+        } else if (selectedFile.path != null) {
+          final file = File(selectedFile.path!);
+          bytes = await file.readAsBytes();
+        } else {
+          throw Exception('Unable to read file data');
+        }
+        
         final base64String = base64Encode(bytes);
         
         setState(() {
-          _selectedFile = result.files.single;
+          _selectedFile = selectedFile;
           _documentBase64 = base64String;
         });
         
-        Logger.i(_tag, 'Document selected: ${_selectedFile!.name}');
+        Logger.i(_tag, 'Document selected successfully: ${selectedFile.name} (${bytes.length} bytes)');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('File selected: ${selectedFile.name}'),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        Logger.i(_tag, 'No file selected by user');
       }
     } catch (e) {
       Logger.e(_tag, 'Error picking document', error: e);
+      
+      String errorMessage = 'Error selecting file';
+      if (e.toString().contains('LateInitializationError')) {
+        errorMessage = 'File picker not ready. Please restart the app and try again.';
+      } else if (e.toString().contains('permission')) {
+        errorMessage = 'Permission denied. Please allow file access in settings.';
+      } else if (e.toString().contains('platform')) {
+        errorMessage = 'File picker not supported on this device.';
+      } else {
+        errorMessage = 'Error selecting file: ${e.toString()}';
+      }
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error selecting file: ${e.toString()}'),
+            content: Text(errorMessage),
             backgroundColor: Theme.of(context).colorScheme.error,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
     } finally {
-      setState(() => _isUploadingFile = false);
+      if (mounted) {
+        setState(() => _isUploadingFile = false);
+      }
     }
   }
 

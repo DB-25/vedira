@@ -47,5 +47,21 @@
 	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<!-- File picker permissions -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs access to your photo library to upload images for course creation.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs access to your camera to take photos for course creation.</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>This app needs access to your music library to upload audio files for course creation.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>UISupportsDocumentBrowser</key>
+	<true/>
 </dict>
 </plist>
