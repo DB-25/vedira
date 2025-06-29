@@ -135,6 +135,7 @@ class ScrollIndicator extends StatefulWidget {
   final Color? thumbColor;
   final double thumbHeight;
   final BorderRadius? borderRadius;
+  final ValueChanged<double>? onThumbRatioChanged;
 
   const ScrollIndicator({
     super.key,
@@ -144,6 +145,7 @@ class ScrollIndicator extends StatefulWidget {
     this.thumbColor,
     this.thumbHeight = AppConstants.scrollIndicatorThumbHeight,
     this.borderRadius,
+    this.onThumbRatioChanged,
   });
 
   @override
@@ -152,12 +154,15 @@ class ScrollIndicator extends StatefulWidget {
 
 class _ScrollIndicatorState extends State<ScrollIndicator> {
   double _thumbPosition = 0.0;
+  double _thumbHeight = AppConstants.scrollIndicatorThumbHeight;
   double _availableHeight = 0.0;
 
   @override
   void initState() {
     super.initState();
     widget.scrollController.addListener(_scrollListener);
+    // Calculate initial thumb size after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollListener());
   }
 
   @override
@@ -171,14 +176,44 @@ class _ScrollIndicatorState extends State<ScrollIndicator> {
 
     final maxScrollExtent = widget.scrollController.position.maxScrollExtent;
     final currentPosition = widget.scrollController.offset;
+    final viewportDimension = widget.scrollController.position.viewportDimension;
 
     if (maxScrollExtent > 0) {
+      // Calculate thumb size based on content ratio
+      final totalContentHeight = viewportDimension + maxScrollExtent;
+      final contentRatio = viewportDimension / totalContentHeight;
+      final calculatedThumbHeight = (_availableHeight * contentRatio).clamp(
+        widget.thumbHeight, // Minimum thumb height
+        _availableHeight * 0.9, // Maximum thumb height (90% of track)
+      );
+
+      // Calculate thumb position
       final progress = (currentPosition / maxScrollExtent).clamp(0.0, 1.0);
-      final maxThumbPosition = _availableHeight - widget.thumbHeight;
+      final maxThumbPosition = _availableHeight - calculatedThumbHeight;
+      final newThumbPosition = progress * maxThumbPosition;
 
       setState(() {
-        _thumbPosition = progress * maxThumbPosition;
+        _thumbHeight = calculatedThumbHeight;
+        _thumbPosition = newThumbPosition;
       });
+
+      // Notify parent about thumb ratio for visibility decisions
+      if (widget.onThumbRatioChanged != null && _availableHeight > 0) {
+        final thumbRatio = calculatedThumbHeight / _availableHeight;
+        widget.onThumbRatioChanged!(thumbRatio);
+      }
+    } else {
+      // No scrolling needed - thumb fills most of the track
+      setState(() {
+        _thumbHeight = _availableHeight * 0.9;
+        _thumbPosition = 0.0;
+      });
+
+      // Notify parent about thumb ratio
+      if (widget.onThumbRatioChanged != null && _availableHeight > 0) {
+        final thumbRatio = (_availableHeight * 0.9) / _availableHeight;
+        widget.onThumbRatioChanged!(thumbRatio);
+      }
     }
   }
 
@@ -193,7 +228,14 @@ class _ScrollIndicatorState extends State<ScrollIndicator> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        _availableHeight = constraints.maxHeight;
+        final newAvailableHeight = constraints.maxHeight;
+        
+        // Update available height and recalculate if it changed
+        if (_availableHeight != newAvailableHeight) {
+          _availableHeight = newAvailableHeight;
+          // Use post frame callback to avoid calling setState during build
+          WidgetsBinding.instance.addPostFrameCallback((_) => _scrollListener());
+        }
 
         return Container(
           width: widget.width,
@@ -210,7 +252,7 @@ class _ScrollIndicatorState extends State<ScrollIndicator> {
                 right: 0,
                 child: AnimatedContainer(
                   duration: AppConstants.progressAnimationDuration,
-                  height: widget.thumbHeight,
+                  height: _thumbHeight,
                   decoration: BoxDecoration(
                     color: thumbColor,
                     borderRadius: BorderRadius.circular(widget.width / 2),

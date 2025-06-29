@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:markdown_widget/markdown_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum FontSize { small, medium, large }
@@ -10,10 +9,8 @@ class LessonController extends ChangeNotifier {
   static const String _fontSizeKey = 'lesson_font_size';
   bool _isLoading = true;
 
-  // TOC and scroll control
-  final TocController _tocController = TocController();
+  // Scroll control
   ScrollController? _scrollController;
-  int _currentTocIndex = -1;
   bool _showScrollToTop = false;
 
   // Reader state
@@ -28,9 +25,7 @@ class LessonController extends ChangeNotifier {
   // Getters
   FontSize get fontSize => _fontSize;
   bool get isLoading => _isLoading;
-  TocController get tocController => _tocController;
   ScrollController? get scrollController => _scrollController;
-  int get currentTocIndex => _currentTocIndex;
   bool get showScrollToTop => _showScrollToTop;
   bool get isCompleting => _isCompleting;
   bool get isCompleted => _isCompleted;
@@ -89,20 +84,6 @@ class LessonController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Scroll to a specific TOC item
-  void scrollToTocItem(String id) {
-    // Use the TocController to scroll to the item
-    if (_scrollController != null) {
-      // Find the position to scroll to
-      // This is a simplified approach, would need to be adapted based on the actual TOC implementation
-      _scrollController?.animateTo(
-        0, // Replace with actual position calculation
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
-  }
-
   // Scroll to top
   void scrollToTop() {
     _scrollController?.animateTo(
@@ -110,14 +91,6 @@ class LessonController extends ChangeNotifier {
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
-  }
-
-  // Update current TOC index based on scroll position
-  void updateCurrentTocIndex(int index) {
-    if (_currentTocIndex != index) {
-      _currentTocIndex = index;
-      notifyListeners();
-    }
   }
 
   // Set lesson completion status

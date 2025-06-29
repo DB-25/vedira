@@ -5,7 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../controllers/lesson_controller.dart';
 import '../models/lesson.dart';
 import '../models/section.dart';
-import '../models/user_progress.dart';
+
 import '../services/api_service.dart';
 import '../services/mcq_service.dart';
 import '../services/flashcard_service.dart';
@@ -45,123 +45,166 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
   final ProgressService _progressService = ProgressService();
   final String _tag = 'LessonViewScreen';
   final ScrollController _scrollController = ScrollController();
-  final ScrollController _tocScrollController = ScrollController();
-  final TocController _tocController = TocController();
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   Map<String, String> _lessonContentSections = {};
   List<String> _sectionKeys = [];
-  int _currentSectionIndex = 0;
+  String _currentSectionContent = '';
+  String _currentSectionTitle = '';
   bool _isLoading = true;
   bool _error = false;
   bool _isCompleting = false;
   FontSize _fontSize = FontSize.medium;
   bool _showScrollToTop = false;
-  bool _hasReached90Percent =
-      false; // Track 90% scroll progress for completion button
-  bool _showFab = true; // Always show FAB, but with dynamic behavior
-  bool _hasMcqs = false; // Track if MCQs are available
-  bool _hasFlashcards = false; // Track if flashcards are available
+  bool _hasReached90Percent = false;
+  bool _isScrollingNeeded = false;
+  double _thumbRatio = 0.0;
+
+  bool _hasMcqs = false;
+  bool _hasFlashcards = false;
+  bool _hasNextLesson = false;
+
+  List<GlobalKey> _sectionHeaderKeys = [];
+  List<String> _allSectionsContent = [];
+  List<String> _allSectionTitles = [];
+  int _currentVisibleSection = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadLessonContent();
+    _scrollController.addListener(_scrollListener);
+    _loadLessonData();
     _checkMcqAvailability();
     _checkFlashcardAvailability();
-
-    // Add scroll listener for FAB visibility
-    _scrollController.addListener(_scrollListener);
+    _checkNextLessonAvailability();
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
-    _tocScrollController.dispose();
     _mcqService.dispose();
     _flashcardService.dispose();
     super.dispose();
   }
 
-  // Track scroll position for FAB visibility and 90% progress detection
   void _scrollListener() {
-    if (!_scrollController.hasClients) return;
+    if (!_scrollController.hasClients || !mounted) return;
 
+    final scrollOffset = _scrollController.offset;
     final maxScrollExtent = _scrollController.position.maxScrollExtent;
-    final currentPosition = _scrollController.offset;
-    final threshold = 50.0; // 50px threshold to account for precision issues
+    final viewportDimension = _scrollController.position.viewportDimension;
 
-    // Check if scrolled to bottom (for FAB behavior)
-    final isAtBottom = currentPosition >= (maxScrollExtent - threshold);
-
-    // Check if reached 90% scroll progress (for completion button)
-    final scrollProgress =
-        maxScrollExtent > 0 ? currentPosition / maxScrollExtent : 0.0;
-    final hasReached90Percent = scrollProgress >= 0.9;
-
-    // Update FAB state
-    if (_showScrollToTop != isAtBottom && mounted) {
+    final isScrollingNeeded = maxScrollExtent > 0;
+    if (_isScrollingNeeded != isScrollingNeeded) {
       setState(() {
-        _showScrollToTop = isAtBottom;
+        _isScrollingNeeded = isScrollingNeeded;
       });
     }
 
-    // Update 90% progress state - once true, keep it true (don't hide completion button)
-    if (!_hasReached90Percent && hasReached90Percent && mounted) {
+    _updateVisibleSection();
+
+    if (maxScrollExtent > 0) {
+      final scrollPercentage = scrollOffset / maxScrollExtent;
+      if (scrollPercentage >= 0.9 && !_hasReached90Percent) {
+        setState(() {
+          _hasReached90Percent = true;
+        });
+      }
+    }
+  }
+
+  void _updateVisibleSection() {
+    if (_sectionHeaderKeys.isEmpty) return;
+
+    int newVisibleSection = 0;
+    final scrollOffset = _scrollController.offset;
+
+    for (int i = 0; i < _sectionHeaderKeys.length; i++) {
+      final context = _sectionHeaderKeys[i].currentContext;
+      if (context != null) {
+        final renderBox = context.findRenderObject() as RenderBox?;
+        if (renderBox != null) {
+          final position = renderBox.localToGlobal(Offset.zero);
+          if (position.dy <= MediaQuery.of(context).size.height / 2) {
+            newVisibleSection = i;
+          }
+        }
+      }
+    }
+
+    if (newVisibleSection != _currentVisibleSection) {
       setState(() {
-        _hasReached90Percent = true;
+        _currentVisibleSection = newVisibleSection;
       });
     }
   }
 
-  // Load lesson content from API or use provided lesson
-  Future<void> _loadLessonContent() async {
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = true;
-      _error = false;
-    });
-
+  Future<void> _loadLessonData() async {
     try {
-      // Use lesson content if provided, otherwise fetch from API
-      if (widget.lesson != null && widget.lesson!.content.isNotEmpty) {
-        if (mounted) {
-          setState(() {
-            _lessonContentSections = {'section1': widget.lesson!.content};
-            _sectionKeys = ['section1'];
-            _currentSectionIndex = 0;
-            _isLoading = false;
-          });
-        }
+      final contentSections = await _apiService.getLessonContent(
+        courseId: widget.courseId,
+        chapterId: widget.chapterId,
+        lessonId: widget.lessonId,
+      );
+
+      if (contentSections != null && mounted) {
+        setState(() {
+          _lessonContentSections = contentSections;
+          _sectionKeys = contentSections.keys.toList();
+          _allSectionsContent = _sectionKeys.map((key) => contentSections[key] ?? '').toList();
+          _allSectionTitles = _sectionKeys.map((key) => _extractTitleFromContent(contentSections[key] ?? '')).toList();
+          
+          _sectionHeaderKeys = List.generate(_sectionKeys.length, (index) => GlobalKey());
+          
+          _isLoading = false;
+        });
+        
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _checkScrollingNeeded();
+        });
       } else {
-        final contentSections = await _apiService.getLessonContent(
-          courseId: widget.courseId,
-          chapterId: widget.chapterId,
-          lessonId: widget.lessonId,
-        );
+        Logger.w(_tag, 'No lesson data found');
         if (mounted) {
           setState(() {
-            _lessonContentSections = contentSections;
-            _sectionKeys = contentSections.keys.toList();
-            _currentSectionIndex = 0;
             _isLoading = false;
           });
         }
       }
     } catch (e) {
-      Logger.e(_tag, 'Error loading lesson content', error: e);
+      Logger.e(_tag, 'Error loading lesson data', error: e);
       if (mounted) {
         setState(() {
-          _error = true;
           _isLoading = false;
         });
       }
     }
   }
 
-  // Check if MCQs are available for this lesson
+  void _checkScrollingNeeded() {
+    if (!mounted || !_scrollController.hasClients) return;
+    
+    final maxScrollExtent = _scrollController.position.maxScrollExtent;
+    final isScrollingNeeded = maxScrollExtent > 0;
+    
+    if (_isScrollingNeeded != isScrollingNeeded) {
+      setState(() {
+        _isScrollingNeeded = isScrollingNeeded;
+      });
+    }
+  }
+
+  void _onThumbRatioChanged(double ratio) {
+    if (_thumbRatio != ratio) {
+      setState(() {
+        _thumbRatio = ratio;
+      });
+    }
+  }
+
+  bool get _shouldShowScrollAids {
+    return _isScrollingNeeded && _thumbRatio < 0.4;
+  }
+
   Future<void> _checkMcqAvailability() async {
     try {
       final hasMcqs = await _mcqService.areMcqsAvailable(
@@ -180,7 +223,6 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
     }
   }
 
-  // Check if flashcards are available for this lesson
   Future<void> _checkFlashcardAvailability() async {
     try {
       final hasFlashcards = await _flashcardService.areFlashcardsAvailable(
@@ -199,28 +241,33 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
     }
   }
 
-  // Toggle the TOC drawer
-  void _toggleToc() {
-    // Only show TOC if content is available
-    if (_currentSectionContent.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No content available for table of contents'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
+  Future<void> _checkNextLessonAvailability() async {
+    try {
+      final course = await _apiService.getCourse(widget.courseId);
+      
+      bool hasNext = false;
+      if (course.sections != null) {
+        for (final section in course.sections!) {
+          final lessonIndex = section.lessons.indexWhere((l) => l.id == widget.lessonId);
+          if (lessonIndex >= 0) {
+            hasNext = lessonIndex + 1 < section.lessons.length;
+            Logger.i(_tag, 'Next lesson check: Current index $lessonIndex, Total lessons ${section.lessons.length}, Has next: $hasNext');
+            break;
+          }
+        }
+      }
 
-    // Open the end drawer
-    if (_scaffoldKey.currentState?.isEndDrawerOpen ?? false) {
-      Navigator.of(context).pop();
-    } else {
-      _scaffoldKey.currentState?.openEndDrawer();
+      if (mounted) {
+        setState(() {
+          _hasNextLesson = hasNext;
+        });
+        Logger.i(_tag, 'Updated _hasNextLesson to: $_hasNextLesson');
+      }
+    } catch (e) {
+      Logger.w(_tag, 'Error checking next lesson availability: $e');
     }
   }
 
-  // Mark the lesson as completed
   Future<void> _markLessonAsCompleted() async {
     if (!mounted) return;
 
@@ -229,22 +276,17 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
     });
 
     try {
-      // Save lesson completion to local progress
       final success = await _progressService.markLessonCompleted(
         courseId: widget.courseId,
         chapterId: widget.chapterId,
         lessonId: widget.lessonId,
         lessonName: widget.lessonTitle,
-        studyTimeMinutes: 5, // Estimate - could be more sophisticated
+        studyTimeMinutes: 5,
       );
 
       if (success) {
-        // Show completion dialog instead of just returning
-        if (mounted) {
-          await _showCompletionDialog();
-        }
+        await _navigateToNextLessonOrCourse();
       } else {
-        // Show error if saving failed
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -252,12 +294,14 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
               backgroundColor: Colors.red,
             ),
           );
+          setState(() {
+            _isCompleting = false;
+          });
         }
       }
     } catch (e) {
       Logger.e(_tag, 'Error marking lesson as completed', error: e);
 
-      // Show error message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -270,9 +314,6 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
             ),
           ),
         );
-      }
-    } finally {
-      if (mounted) {
         setState(() {
           _isCompleting = false;
         });
@@ -280,219 +321,90 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
     }
   }
 
-  Future<void> _showCompletionDialog() async {
-    // Get existing quiz attempts to show in dialog
-    final progress = await _progressService.getCourseProgress(widget.courseId);
-    final chapterProgress = progress?.chapterProgress[widget.chapterId];
-    final attempts = chapterProgress?.quizAttempts[widget.lessonId] ?? [];
-    final bestAttempt =
-        attempts.isNotEmpty
-            ? attempts.reduce(
-              (a, b) => a.scorePercentage > b.scorePercentage ? a : b,
-            )
-            : null;
-
-    if (!mounted) return;
-
-    final theme = Theme.of(context);
-
-    final result = await showDialog<String>(
-      context: context,
-      barrierDismissible: false, // Force user to make a choice
-      builder: (BuildContext context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          backgroundColor: theme.colorScheme.cardColor,
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Success icon
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.success.withValues(alpha: 0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.check_circle,
-                    color: theme.colorScheme.success,
-                    size: 36,
-                  ),
+  Future<void> _navigateToNextLessonOrCourse() async {
+    try {
+      final course = await _apiService.getCourse(widget.courseId);
+      
+      // Find current lesson and check for next lesson
+      Section? currentSection;
+      int? currentLessonIndex;
+      
+      Logger.i(_tag, 'Looking for next lesson. Current lesson ID: ${widget.lessonId}');
+      
+      if (course.sections != null) {
+        for (final section in course.sections!) {
+          final lessonIndex = section.lessons.indexWhere((l) => l.id == widget.lessonId);
+          if (lessonIndex >= 0) {
+            currentSection = section;
+            currentLessonIndex = lessonIndex;
+            Logger.i(_tag, 'Found current lesson at index $lessonIndex in section with ${section.lessons.length} lessons');
+            break;
+          }
+        }
+      }
+      
+      if (currentSection != null && currentLessonIndex != null) {
+        // Check if there's a next lesson in the current section
+        if (currentLessonIndex + 1 < currentSection.lessons.length) {
+          final nextLesson = currentSection.lessons[currentLessonIndex + 1];
+          Logger.i(_tag, 'Found next lesson: ${nextLesson.title} (${nextLesson.id})');
+          
+          // Navigate to next lesson using MaterialPageRoute for reliability
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => LessonViewScreen(
+                  courseId: widget.courseId,
+                  chapterId: widget.chapterId,
+                  lessonId: nextLesson.id,
+                  lessonTitle: nextLesson.title,
                 ),
-                const SizedBox(height: 16),
-
-                // Title
-                Text(
-                  'Lesson Complete!',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-
-                // Subtitle
-                Text(
-                  'You completed "${widget.lessonTitle}"',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-
-                // Primary action - Take Quiz
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop('quiz'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.colorScheme.secondary,
-                      foregroundColor: theme.colorScheme.onSecondary,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.quiz,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          bestAttempt != null ? 'Retake Quiz' : 'Take Quiz',
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                                // Secondary actions
-                Row(
-                  children: [
-                    // Continue Learning (secondary action)
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop('next'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          side: BorderSide(color: theme.colorScheme.success),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.arrow_forward,
-                              size: 16,
-                              color: theme.colorScheme.success,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Continue',
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: theme.colorScheme.success,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    
-                    const SizedBox(width: 8),
-                    
-                    // Overview option (tertiary action)
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop('back'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          side: BorderSide(color: theme.colorScheme.outline),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.list,
-                              size: 16,
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Overview',
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    // Handle user's choice
-    if (result != null && mounted) {
-      switch (result) {
-        case 'quiz':
-          // Navigate to quiz
-          _navigateToMcqQuiz();
-          break;
-        case 'next':
-          // TODO: Navigate to next lesson (would need to determine which is next)
-          Navigator.of(context).pop({
-            'lessonCompleted': true,
-            'lessonId': widget.lessonId,
-            'lessonTitle': widget.lessonTitle,
-            'chapterId': widget.chapterId,
-            'courseId': widget.courseId,
-          }); // Go back with lesson completion data
-          break;
-        case 'back':
-          Navigator.of(context).pop({
-            'lessonCompleted': true,
-            'lessonId': widget.lessonId,
-            'lessonTitle': widget.lessonTitle,
-            'chapterId': widget.chapterId,
-            'courseId': widget.courseId,
-          }); // Go back to course details with lesson completion data
-          break;
+              ),
+            );
+          }
+          return;
+        } else {
+          Logger.i(_tag, 'No next lesson found, this is the last lesson in the section');
+        }
+      } else {
+        Logger.w(_tag, 'Could not find current lesson in course sections');
+      }
+      
+      // No next lesson, go back to course details
+      Logger.i(_tag, 'Navigating back to course details with completion data');
+      if (mounted) {
+        Navigator.of(context).pop({
+          'lessonCompleted': true,
+          'lessonId': widget.lessonId,
+          'lessonTitle': widget.lessonTitle,
+          'chapterId': widget.chapterId,
+          'courseId': widget.courseId,
+        });
+      }
+    } catch (e) {
+      Logger.e(_tag, 'Error navigating after lesson completion', error: e);
+      
+      // Fallback: go back to course details
+      if (mounted) {
+        Navigator.of(context).pop({
+          'lessonCompleted': true,
+          'lessonId': widget.lessonId,
+          'lessonTitle': widget.lessonTitle,
+          'chapterId': widget.chapterId,
+          'courseId': widget.courseId,
+        });
       }
     }
   }
 
-  // Change the font size
+  
+
   void _changeFontSize(FontSize size) {
     if (mounted) {
       setState(() {
         _fontSize = size;
       });
-      // Show a confirmation of the change
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Font size changed to ${size.name}'),
@@ -503,14 +415,12 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
   }
 
   void _navigateToMcqQuiz() async {
-    // Try to fetch section information to enable next lesson navigation
     Section? section;
     int? currentLessonIndex;
 
     try {
       final course = await _apiService.getCourse(widget.courseId);
 
-      // Find the section that contains this lesson
       if (course.sections != null) {
         for (final s in course.sections!) {
           final lessonIndex = s.lessons.indexWhere(
@@ -542,24 +452,19 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
       ),
     );
 
-    // If quiz was completed and user went back to course overview,
-    // we need to pop this screen too so the course details screen can refresh
     if (result != null && result['quizCompleted'] == true) {
       Logger.i(_tag, 'Quiz completed, going back to course overview. Score: ${result['score']}/${result['totalQuestions']}');
-      // Pop back to course details screen with quiz completion data
       Navigator.of(context).pop(result);
     }
   }
 
   void _navigateToFlashcards() async {
-    // Try to fetch section information to enable next lesson navigation
     Section? section;
     int? currentLessonIndex;
 
     try {
       final course = await _apiService.getCourse(widget.courseId);
 
-      // Find the section that contains this lesson
       if (course.sections != null) {
         for (final s in course.sections!) {
           final lessonIndex = s.lessons.indexWhere(
@@ -591,10 +496,8 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
       ),
     );
 
-    // Handle any result from flashcard screen if needed
     if (result != null && result['flashcardsCompleted'] == true) {
       Logger.i(_tag, 'Flashcards completed, refreshing lesson view');
-      // Can add any refresh logic here if needed
     }
   }
 
@@ -604,35 +507,25 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
     final colorScheme = theme.colorScheme;
     final isDarkMode = theme.brightness == Brightness.dark;
 
-    // Use the body background from theme manager
     final bodyBackgroundColor = colorScheme.bodyBackground;
 
     return Scaffold(
-      key: _scaffoldKey,
       backgroundColor: bodyBackgroundColor,
       appBar: CustomAppBar(
         title: widget.lessonTitle,
         centerTitle: false,
         actions: [
-          // Font size button
           IconButton(
             icon: const Icon(Icons.text_fields),
             tooltip: 'Text Size',
             onPressed: () => _showFontSizeOptions(context),
           ),
-          // TOC button
-          IconButton(
-            icon: const Icon(Icons.menu),
-            tooltip: 'Table of Contents',
-            onPressed: _toggleToc,
-          ),
-          // MCQ button
+
           IconButton(
             icon: const Icon(Icons.quiz),
             tooltip: 'Take Quiz',
             onPressed: _hasMcqs ? _navigateToMcqQuiz : null,
           ),
-          // Flashcards button
           IconButton(
             icon: const Icon(Icons.style),
             tooltip: 'Study Flashcards',
@@ -640,19 +533,16 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
           ),
         ],
       ),
-      // Dynamic floating action button - scroll down by default, scroll up when at bottom
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: _shouldShowScrollAids ? FloatingActionButton(
         mini: true,
         onPressed: () {
           if (_showScrollToTop) {
-            // At bottom - scroll to top
             _scrollController.animateTo(
               0,
               duration: const Duration(milliseconds: 500),
               curve: Curves.easeInOut,
             );
           } else {
-            // Not at bottom - scroll to bottom
             _scrollController.animateTo(
               _scrollController.position.maxScrollExtent,
               duration: const Duration(milliseconds: 500),
@@ -666,12 +556,11 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
           switchInCurve: Curves.easeInOut,
           switchOutCurve: Curves.easeInOut,
           transitionBuilder: (Widget child, Animation<double> animation) {
-            // Natural directional slide based on arrow direction
             final isUpArrow = (child.key as ValueKey).value == 'up';
             final slideOffset =
                 isUpArrow
-                    ? const Offset(0.0, 0.3) // Up arrow slides from below
-                    : const Offset(0.0, -0.3); // Down arrow slides from above
+                    ? const Offset(0.0, 0.3)
+                    : const Offset(0.0, -0.3);
 
             return SlideTransition(
               position: animation.drive(
@@ -690,8 +579,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
             key: ValueKey(_showScrollToTop ? 'up' : 'down'),
           ),
         ),
-      ),
-      // Bottom bar with "Mark as Completed" button - only show on last section when scrolled to bottom
+      ) : null,
       bottomNavigationBar:
           _shouldShowCompletionButton
               ? Container(
@@ -731,154 +619,16 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
                                 const Text('Marking as Completed...'),
                               ],
                             )
-                            : const Text('Mark as Completed'),
+                            : Text(_hasNextLesson ? 'Next Lesson' : 'Finish Chapter'),
                   ),
                 ),
               )
               : null,
-      body: _buildBody(isDarkMode),
-      endDrawer: _buildTocDrawer(theme),
+      body: _buildBody(),
     );
   }
 
-  // Build the TOC drawer with error handling
-  Widget? _buildTocDrawer(ThemeData theme) {
-    return Drawer(
-      width: 300,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.only(
-          topRight: Radius.circular(16),
-          bottomRight: Radius.circular(16),
-        ),
-      ),
-      elevation: 2,
-      child: SafeArea(
-        // SafeArea to handle notch/status bar overlap
-        child: Column(
-          children: [
-            // Header with title and close button
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.1),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.list_alt,
-                        color: theme.colorScheme.primary,
-                        size: 22,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Table of Contents',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
-                    tooltip: 'Close',
-                    style: IconButton.styleFrom(
-                      backgroundColor: theme.colorScheme.surface.withOpacity(
-                        0.8,
-                      ),
-                      foregroundColor: theme.colorScheme.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Divider below header
-            Divider(height: 1, thickness: 1, color: theme.dividerColor),
-
-            // TOC Content
-            Expanded(
-              child: Builder(
-                builder: (context) {
-                  // Only show TOC if we have content
-                  if (_currentSectionContent.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Text(
-                          'No content available',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontStyle: FontStyle.italic,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-
-                  try {
-                    // Use TocWidget with appropriate styling - based on documentation
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: TocWidget(
-                        controller: _tocController,
-                        physics: const BouncingScrollPhysics(),
-                        shrinkWrap: true,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        // Basic styling for TOC items
-                        tocTextStyle: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface,
-                          height: 1.5,
-                        ),
-                        // Styling for active/current TOC item
-                        currentTocTextStyle: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
-                          height: 1.5,
-                        ),
-                      ),
-                    );
-                  } catch (e) {
-                    Logger.e(_tag, 'Error displaying TOC', error: e);
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.warning_amber_rounded,
-                              color: theme.colorScheme.error,
-                              size: 32,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Unable to display table of contents.',
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.error,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Build the main body content
-  Widget _buildBody(bool isDarkMode) {
+  Widget _buildBody() {
     final theme = Theme.of(context);
     
     if (_isLoading) {
@@ -898,7 +648,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _loadLessonContent,
+              onPressed: _loadLessonData,
               child: const Text('Retry'),
             ),
           ],
@@ -906,47 +656,42 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
       );
     }
 
-    if (_currentSectionContent.isEmpty) {
+    if (_allSectionsContent.isEmpty) {
       return const Center(child: Text('No content to display'));
     }
 
-    // Build content with pagination controls and reading progress indicator
     return SafeArea(
       child: Column(
         children: [
-          // Reading Progress Indicator
-
-          // Top pagination controls
-          if (_hasMultipleSections) _buildPaginationControls(isTop: true),
-          ReadingProgressIndicator(
-            scrollController: _scrollController,
-            height: 6.0,
-            showPercentage: false,
-            borderRadius: BorderRadius.circular(5.0),
-          ),
-          // Main scrollable content with side scroll indicator
+          _buildProgressIndicator(),
           Expanded(
             child: Row(
               children: [
-                // Main content area - now the entire area is scrollable
                 Expanded(
                   child: SingleChildScrollView(
                     controller: _scrollController,
                     physics: const ClampingScrollPhysics(),
                     padding: const EdgeInsets.all(16),
-                    child: _buildMarkdownContent(isDarkMode),
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: _buildContinuousContent(),
+                      ),
+                    ),
                   ),
                 ),
 
-                // Side scroll indicator
-                Container(
-                  width: 12,
-                  margin: const EdgeInsets.only(right: 8, top: 16, bottom: 16),
-                  child: ScrollIndicator(
-                    scrollController: _scrollController,
-                    width: 8,
+                if (_shouldShowScrollAids)
+                  Container(
+                    width: 12,
+                    margin: const EdgeInsets.only(right: 8, top: 16, bottom: 16),
+                    child: ScrollIndicator(
+                      scrollController: _scrollController,
+                      width: 8,
+                      onThumbRatioChanged: _onThumbRatioChanged,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -955,312 +700,384 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
     );
   }
 
-  // Build pagination controls
-  Widget _buildPaginationControls({required bool isTop}) {
+  Widget _buildProgressIndicator() {
     final theme = Theme.of(context);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         border: Border(
-          top: isTop ? BorderSide.none : BorderSide(color: theme.dividerColor),
-          bottom:
-              isTop ? BorderSide(color: theme.dividerColor) : BorderSide.none,
+          bottom: BorderSide(color: theme.dividerColor),
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         children: [
-          // Previous button
-          TextButton.icon(
-            onPressed: _currentSectionIndex > 0 ? _goToPreviousSection : null,
-            icon: const Icon(Icons.arrow_back_ios, size: 16),
-            label: const Text('Previous'),
-            style: TextButton.styleFrom(
-              foregroundColor: theme.colorScheme.primary,
-            ),
-          ),
-
-          // Section indicator
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Section ${_currentSectionIndex + 1} of ${_sectionKeys.length}',
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Part ${_currentVisibleSection + 1} of ${_allSectionTitles.length}',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withAlpha(153),
+                    color: theme.colorScheme.onSurface.withOpacity(0.7),
                   ),
                 ),
-                if (isTop) // Only show section title at the top
-                  Text(
-                    _currentSectionTitle,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                      color: theme.colorScheme.primary,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+              ),
+              if (_allSectionTitles.length > 1)
+                TextButton.icon(
+                  onPressed: _showSectionNavigation,
+                  icon: const Icon(Icons.list, size: 16),
+                  label: const Text('Jump to'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: theme.colorScheme.primary,
+                    textStyle: theme.textTheme.bodySmall,
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
-
-          // Next button
-          TextButton.icon(
-            onPressed:
-                _currentSectionIndex < _sectionKeys.length - 1
-                    ? _goToNextSection
-                    : null,
-            icon: const Icon(Icons.arrow_forward_ios, size: 16),
-            label: const Text('Next'),
-            style: TextButton.styleFrom(
-              foregroundColor: theme.colorScheme.primary,
+          
+          const SizedBox(height: 8),
+          
+          LinearProgressIndicator(
+            value: (_currentVisibleSection + 1) / _allSectionTitles.length,
+            backgroundColor: theme.colorScheme.surfaceContainerHighest,
+            valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
+          ),
+          
+          const SizedBox(height: 4),
+          
+          Text(
+            _allSectionTitles.isNotEmpty ? _allSectionTitles[_currentVisibleSection] : '',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w500,
+              color: theme.colorScheme.primary,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
     );
   }
 
-  // Navigate to previous section
-  void _goToPreviousSection() {
-    if (_currentSectionIndex > 0 && mounted) {
-      setState(() {
-        _currentSectionIndex--;
-        _hasReached90Percent =
-            false; // Reset 90% progress when changing sections
-      });
-
-      // Reset scroll to top for new section after the rebuild is complete
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            0,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
-        }
-      });
-    }
-  }
-
-  // Navigate to next section
-  void _goToNextSection() {
-    if (_currentSectionIndex < _sectionKeys.length - 1 && mounted) {
-      setState(() {
-        _currentSectionIndex++;
-        _hasReached90Percent =
-            false; // Reset 90% progress when changing sections
-      });
-
-      // Reset scroll to top for new section after the rebuild is complete
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            0,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
-        }
-      });
-    }
-  }
-
-  // Build the markdown content widget
-  Widget _buildMarkdownContent(bool isDarkMode) {
+  Widget _buildContinuousContent() {
     final theme = Theme.of(context);
-    // Create the markdown widget with custom code wrapper
-    return Builder(
-      builder: (context) {
-        try {
-          final baseFontSize = _getFontSizeValue();
-
-          // Clean the markdown content to prevent entire sections being treated as code blocks
-          String cleanedContent = _cleanMarkdownContent(_currentSectionContent);
-
-          // Check if this is a large section that might be problematic
-          final isLargeSection = cleanedContent.length > 10000;
-
-          // Create a config with our custom font sizes
-          final customConfig =
-              isDarkMode
-                  ? MarkdownConfig.darkConfig
-                  : MarkdownConfig.defaultConfig;
-
-          // Prepare config list - conditionally include PreConfig
-          final List<WidgetConfig> configs = [
-            // Base text style with our selected font size
-            PConfig(textStyle: theme.textTheme.bodyMedium?.copyWith(fontSize: baseFontSize) ?? GoogleFonts.poppins(fontSize: baseFontSize)),
-            // Apply proportional font sizes to headings using theme styles
-            H1Config(
-              style: theme.textTheme.headlineLarge?.copyWith(
-                fontSize: baseFontSize * 1.8,
-              ) ?? GoogleFonts.inter(fontSize: baseFontSize * 1.8, fontWeight: FontWeight.bold),
+    final isDarkMode = theme.brightness == Brightness.dark;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 24),
+          child: Text(
+            widget.lessonTitle,
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.onSurface,
             ),
-            H2Config(
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontSize: baseFontSize * 1.5,
-              ) ?? GoogleFonts.inter(fontSize: baseFontSize * 1.5, fontWeight: FontWeight.bold),
-            ),
-            H3Config(
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontSize: baseFontSize * 1.2,
-              ) ?? GoogleFonts.inter(fontSize: baseFontSize * 1.2, fontWeight: FontWeight.bold),
-            ),
-            // Style for inline code elements (like variables)
-            CodeConfig(
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: baseFontSize,
-                letterSpacing: 0.3,
-                color:
-                    isDarkMode
-                        ? const Color(
-                          0xFFE0E0E0,
-                        ) // Light gray text in dark mode
-                        : const Color(
-                          0xFF333333,
-                        ), // Dark gray text in light mode
-                backgroundColor:
-                    isDarkMode
-                        ? const Color(0xFF3A3A3A) // Darker gray in dark mode
-                        : const Color(0xFFEEEEEE), // Light gray in light mode
-              ),
-            ),
-          ];
-
-          // Only add PreConfig for smaller content to avoid large sections being treated as code
-          if (!isLargeSection) {
-            configs.add(
-              // Code block configuration with safe language handling
-              PreConfig(
-                textStyle: GoogleFonts.jetBrainsMono(
-                  fontSize: baseFontSize * 0.9,
-                ),
-                wrapper: (child, text, language) {
-                  try {
-                    // Check if this looks like actual code or just incorrectly formatted content
-                    final isLikelyActualCode = _isLikelyCodeBlock(
-                      text,
-                      language,
-                    );
-
-                    if (!isLikelyActualCode) {
-                      // This doesn't look like a code block, return original child
-                      return child;
-                    }
-
-                    // Simple language validation to avoid null/empty issues
-                    String safeLanguage = 'plaintext';
-                    if (language.isNotEmpty) {
-                      // Only use language if we support it
-                      final validLanguages = [
-                        'python',
-                        'dart',
-                        'javascript',
-                        'java',
-                        'kotlin',
-                        'swift',
-                        'c',
-                        'cpp',
-                        'csharp',
-                        'go',
-                        'rust',
-                        'html',
-                        'css',
-                        'json',
-                        'yaml',
-                        'markdown',
-                        'bash',
-                        'shell',
-                        'sql',
-                        'plaintext',
-                        'txt',
-                      ];
-                      if (validLanguages.contains(language.toLowerCase())) {
-                        safeLanguage = language.toLowerCase();
-                      }
-                    }
-
-                    return CodeBlockBuilder(
-                      code: text,
-                      language: safeLanguage,
-                      isDarkMode: isDarkMode,
-                    );
-                  } catch (e) {
-                    // Return original child on error
-                    return child;
-                  }
-                },
-              ),
-            );
-          }
-
-          // Create markdown widget (ScrollView is now handled at parent level)
-          return MarkdownWidget(
-            data: cleanedContent,
-            tocController: _tocController,
-            selectable: true,
-            shrinkWrap:
-                true, // Changed back to true since no more SingleChildScrollView wrapper
-            config: customConfig.copy(configs: configs),
-          );
-        } catch (e) {
-          Logger.e(_tag, 'Error rendering markdown content', error: e);
+          ),
+        ),
+        
+        ...List.generate(_allSectionsContent.length, (index) {
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                Icons.warning_amber_rounded,
-                color: Colors.orange,
-                size: 48,
+              Container(
+                key: _sectionHeaderKeys[index],
+                padding: EdgeInsets.only(top: index == 0 ? 0 : 32, bottom: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (index > 0)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        height: 1,
+                        color: theme.dividerColor.withOpacity(0.3),
+                      ),
+                    Text(
+                      _allSectionTitles[index],
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              
+              _buildSectionMarkdown(_allSectionsContent[index], isDarkMode),
+              
               const SizedBox(height: 16),
-              Text(
-                'Error rendering content',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ) ?? GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18),
-              ),
-              const SizedBox(height: 8),
-              Text('Showing raw content instead:\n\n$_currentSectionContent'),
             ],
           );
-        }
+        }),
+        
+        const SizedBox(height: 32),
+        _buildCompletionSection(),
+      ],
+    );
+  }
+
+  Widget _buildSectionMarkdown(String content, bool isDarkMode) {
+    final theme = Theme.of(context);
+    
+    try {
+      final baseFontSize = _getFontSizeValue();
+      String cleanedContent = _cleanMarkdownContent(content);
+      final isLargeSection = cleanedContent.length > 10000;
+
+      final customConfig = isDarkMode ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig;
+
+      final List<WidgetConfig> configs = [
+        PConfig(textStyle: theme.textTheme.bodyMedium?.copyWith(fontSize: baseFontSize) ?? GoogleFonts.poppins(fontSize: baseFontSize)),
+        H1Config(
+          style: theme.textTheme.headlineLarge?.copyWith(fontSize: baseFontSize * 1.8) ?? 
+                 GoogleFonts.inter(fontSize: baseFontSize * 1.8, fontWeight: FontWeight.bold),
+        ),
+        H2Config(
+          style: theme.textTheme.headlineMedium?.copyWith(fontSize: baseFontSize * 1.5) ?? 
+                 GoogleFonts.inter(fontSize: baseFontSize * 1.5, fontWeight: FontWeight.bold),
+        ),
+        H3Config(
+          style: theme.textTheme.headlineSmall?.copyWith(fontSize: baseFontSize * 1.2) ?? 
+                 GoogleFonts.inter(fontSize: baseFontSize * 1.2, fontWeight: FontWeight.bold),
+        ),
+        CodeConfig(
+          style: GoogleFonts.jetBrainsMono(
+            fontSize: baseFontSize,
+            letterSpacing: 0.3,
+            color: isDarkMode ? const Color(0xFFE0E0E0) : const Color(0xFF333333),
+            backgroundColor: isDarkMode ? const Color(0xFF3A3A3A) : const Color(0xFFEEEEEE),
+          ),
+        ),
+      ];
+
+      if (!isLargeSection) {
+        configs.add(
+          PreConfig(
+            textStyle: GoogleFonts.jetBrainsMono(fontSize: baseFontSize * 0.9),
+            wrapper: (child, text, language) {
+              try {
+                final isLikelyActualCode = _isLikelyCodeBlock(text, language);
+                if (!isLikelyActualCode) return child;
+
+                String safeLanguage = 'plaintext';
+                if (language.isNotEmpty) {
+                  final validLanguages = [
+                    'python', 'dart', 'javascript', 'java', 'kotlin', 'swift', 'c', 'cpp',
+                    'csharp', 'go', 'rust', 'html', 'css', 'json', 'yaml', 'markdown',
+                    'bash', 'shell', 'sql', 'plaintext', 'txt',
+                  ];
+                  if (validLanguages.contains(language.toLowerCase())) {
+                    safeLanguage = language.toLowerCase();
+                  }
+                }
+
+                return CodeBlockBuilder(
+                  code: text,
+                  language: safeLanguage,
+                  isDarkMode: isDarkMode,
+                );
+              } catch (e) {
+                return child;
+              }
+            },
+          ),
+        );
+      }
+
+      return MarkdownWidget(
+        data: cleanedContent,
+        selectable: true,
+        shrinkWrap: true,
+        config: customConfig.copy(configs: configs),
+      );
+    } catch (e) {
+      Logger.e(_tag, 'Error rendering section markdown', error: e);
+      return Column(
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 48),
+          const SizedBox(height: 16),
+          Text(
+            'Error rendering section content',
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold) ?? 
+                   GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+          const SizedBox(height: 8),
+          Text('Showing raw content instead:\n\n$content'),
+        ],
+      );
+    }
+  }
+
+  void _showSectionNavigation() {
+    final theme = Theme.of(context);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Jump to Part'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _allSectionTitles.length,
+              itemBuilder: (context, index) {
+                final isCurrentSection = index == _currentVisibleSection;
+                return ListTile(
+                  leading: CircleAvatar(
+                    radius: 12,
+                    backgroundColor: isCurrentSection 
+                        ? theme.colorScheme.primary 
+                        : theme.colorScheme.surfaceContainerHighest,
+                    child: Text(
+                      '${index + 1}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: isCurrentSection 
+                            ? theme.colorScheme.onPrimary 
+                            : theme.colorScheme.onSurface,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    _allSectionTitles[index],
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: isCurrentSection ? FontWeight.bold : FontWeight.normal,
+                      color: isCurrentSection 
+                          ? theme.colorScheme.primary 
+                          : theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  trailing: isCurrentSection 
+                      ? Icon(Icons.visibility, color: theme.colorScheme.primary, size: 20)
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _scrollToSection(index);
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Close',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
+        );
       },
     );
   }
 
-  // Clean markdown content to prevent parsing issues
-  String _cleanMarkdownContent(String content) {
-    final lines = content.split('\n');
-    List<String> workingLines = List.from(lines);
+  void _scrollToSection(int sectionIndex) {
+    if (sectionIndex < 0 || sectionIndex >= _sectionHeaderKeys.length) return;
 
-    // Remove wrapping code block markers if the entire content is wrapped
-    if (workingLines.isNotEmpty && workingLines[0].trim() == '```') {
-      workingLines.removeAt(0);
-
-      // Also remove the corresponding closing marker at the end
-      if (workingLines.isNotEmpty && workingLines.last.trim() == '```') {
-        workingLines.removeLast();
-      }
+    final context = _sectionHeaderKeys[sectionIndex].currentContext;
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
     }
-
-    // Check for other variations of wrapping code blocks (with language specified)
-    if (workingLines.isNotEmpty && workingLines[0].trim().startsWith('```')) {
-      workingLines.removeAt(0);
-
-      // Remove corresponding closing marker
-      if (workingLines.isNotEmpty && workingLines.last.trim() == '```') {
-        workingLines.removeLast();
-      }
-    }
-
-    return workingLines.join('\n');
   }
 
-  // Show font size selection dialog
+  Widget _buildCompletionSection() {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(0.2),
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.check_circle_outline,
+            size: 48,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'You\'ve reached the end!',
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.primary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Great job reading through "${widget.lessonTitle}". Test your knowledge or review key concepts.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.7),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          
+          Row(
+            children: [
+              if (_hasFlashcards)
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pushNamed(
+                        context,
+                        '/flashcard',
+                        arguments: {
+                          'courseId': widget.courseId,
+                          'chapterId': widget.chapterId,
+                          'lessonId': widget.lessonId,
+                          'lessonTitle': widget.lessonTitle,
+                        },
+                      );
+                    },
+                    icon: const Icon(Icons.style),
+                    label: const Text('Flashcards'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.tertiary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              
+              if (_hasFlashcards && _hasMcqs)
+                const SizedBox(width: 12),
+              
+              if (_hasMcqs)
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _navigateToMcqQuiz,
+                    icon: const Icon(Icons.quiz),
+                    label: const Text('Take Quiz'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.secondary,
+                      foregroundColor: theme.colorScheme.onSecondary,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showFontSizeOptions(BuildContext context) {
     final theme = Theme.of(context);
 
@@ -1310,7 +1127,6 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
     );
   }
 
-  // Build a font size option for the dialog
   Widget _buildFontSizeOption(
     BuildContext context,
     FontSize size,
@@ -1363,7 +1179,6 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
     );
   }
 
-  // Get the font size value based on the selected FontSize enum
   double _getFontSizeValue() {
     switch (_fontSize) {
       case FontSize.small:
@@ -1375,61 +1190,35 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
     }
   }
 
-  // Get current section content
-  String get _currentSectionContent {
-    if (_sectionKeys.isEmpty) return '';
-    final currentKey = _sectionKeys[_currentSectionIndex];
-    return _lessonContentSections[currentKey] ?? '';
-  }
 
-  // Get current section title/key
-  String get _currentSectionTitle {
-    if (_sectionKeys.isEmpty) return '';
-    return _sectionKeys[_currentSectionIndex];
-  }
 
-  // Check if there are multiple sections for pagination
-  bool get _hasMultipleSections => _sectionKeys.length > 1;
-
-  // Check if the current section is the last section
-  bool get _isOnLastSection => _currentSectionIndex == _sectionKeys.length - 1;
-
-  // Check if the completion button should be shown
   bool get _shouldShowCompletionButton =>
-      _isOnLastSection && _hasReached90Percent;
+      _currentVisibleSection == _sectionKeys.length - 1 && _hasReached90Percent;
 
-  // Helper method to check if a string looks like actual code
   bool _isLikelyCodeBlock(String text, String language) {
-    // If a specific language is provided (not empty), it's likely a code block
     if (language.isNotEmpty && language != 'plaintext') {
       return true;
     }
 
-    // If text is very long (more than 2000 characters), it's probably not a code block
     if (text.length > 2000) {
       return false;
     }
 
-    // Check for markdown headers (##, ###, etc.) - these indicate it's markdown content, not code
     if (text.contains(RegExp(r'^#{1,6}\s+', multiLine: true))) {
       return false;
     }
 
-    // Check for common markdown patterns
-    if (text.contains(RegExp(r'\*\*.*?\*\*')) || // Bold text
-        text.contains(RegExp(r'\*.*?\*')) || // Italic text
+    if (text.contains(RegExp(r'\*\*.*?\*\*')) ||
+        text.contains(RegExp(r'\*.*?\*')) ||
         text.contains(RegExp(r'\[.*?\]\(.*?\)'))) {
-      // Links
       return false;
     }
 
-    // Check for paragraph breaks - code blocks typically don't have multiple paragraphs
     final paragraphCount = text.split(RegExp(r'\n\s*\n')).length;
     if (paragraphCount > 3) {
       return false;
     }
 
-    // If text starts with markdown content indicators, it's not a code block
     final trimmedText = text.trim();
     if (trimmedText.startsWith('##') ||
         trimmedText.startsWith('**') ||
@@ -1440,16 +1229,15 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
       return false;
     }
 
-    // Check for code-like patterns
     final codePatterns = [
-      RegExp(r'\{.*\}'), // Curly braces
-      RegExp(r'\[.*\]'), // Square brackets (but not markdown links)
-      RegExp(r'function\s*\('), // Function declarations
-      RegExp(r'class\s+\w+'), // Class declarations
-      RegExp(r'import\s+'), // Import statements
-      RegExp(r'def\s+\w+'), // Python function definitions
-      RegExp(r'var\s+\w+'), // Variable declarations
-      RegExp(r'const\s+\w+'), // Constant declarations
+      RegExp(r'\{.*\}'),
+      RegExp(r'\[.*\]'),
+      RegExp(r'function\s*\('),
+      RegExp(r'class\s+\w+'),
+      RegExp(r'import\s+'),
+      RegExp(r'def\s+\w+'),
+      RegExp(r'var\s+\w+'),
+      RegExp(r'const\s+\w+'),
     ];
 
     int codePatternMatches = 0;
@@ -1459,16 +1247,12 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
       }
     }
 
-    // If we have multiple code patterns, it's likely code
     if (codePatternMatches >= 2) {
       return true;
     }
 
-    // Check line count and indentation
     final lines = text.split('\n');
     if (lines.length <= 20) {
-      // Short content might be code
-      // Check if most lines are indented (common in code)
       final indentedLines =
           lines
               .where((line) => line.startsWith('  ') || line.startsWith('\t'))
@@ -1478,7 +1262,81 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
       }
     }
 
-    // Default to false - don't treat as code block unless we're confident
     return false;
+  }
+
+  // Extract title from markdown content by finding the first heading
+  String _extractTitleFromContent(String content) {
+    if (content.isEmpty) return 'Untitled Section';
+    
+    final lines = content.split('\n');
+    
+    for (final line in lines) {
+      final trimmedLine = line.trim();
+      
+      // Look for markdown headings (# ## ###)
+      if (trimmedLine.startsWith('#')) {
+        // Remove the # symbols and any extra whitespace
+        final title = trimmedLine.replaceFirst(RegExp(r'^#+\s*'), '').trim();
+        if (title.isNotEmpty) {
+          return title;
+        }
+      }
+      
+      // Look for lines that might be titles (non-empty, not starting with common text indicators)
+      if (trimmedLine.isNotEmpty && 
+          !trimmedLine.startsWith('```') &&
+          !trimmedLine.toLowerCase().startsWith('the ') &&
+          !trimmedLine.toLowerCase().startsWith('in ') &&
+          !trimmedLine.toLowerCase().startsWith('before ') &&
+          !trimmedLine.toLowerCase().startsWith('when ') &&
+          !trimmedLine.toLowerCase().startsWith('after ') &&
+          trimmedLine.length < 100) { // Reasonable title length
+        return trimmedLine;
+      }
+    }
+    
+    return 'Untitled Section';
+  }
+
+  String _cleanMarkdownContent(String content) {
+    final lines = content.split('\n');
+    List<String> workingLines = List.from(lines);
+
+    // Remove code block wrappers
+    if (workingLines.isNotEmpty && workingLines[0].trim() == '```') {
+      workingLines.removeAt(0);
+      if (workingLines.isNotEmpty && workingLines.last.trim() == '```') {
+        workingLines.removeLast();
+      }
+    }
+
+    if (workingLines.isNotEmpty && workingLines[0].trim().startsWith('```')) {
+      workingLines.removeAt(0);
+      if (workingLines.isNotEmpty && workingLines.last.trim() == '```') {
+        workingLines.removeLast();
+      }
+    }
+
+    // Remove the first heading to avoid duplication with section header
+    bool foundFirstHeading = false;
+    for (int i = 0; i < workingLines.length; i++) {
+      final trimmedLine = workingLines[i].trim();
+      if (trimmedLine.startsWith('#') && !foundFirstHeading) {
+        workingLines.removeAt(i);
+        foundFirstHeading = true;
+        // Also remove any empty lines immediately following
+        while (i < workingLines.length && workingLines[i].trim().isEmpty) {
+          workingLines.removeAt(i);
+        }
+        break;
+      }
+      // Stop looking if we hit non-empty, non-heading content
+      if (trimmedLine.isNotEmpty && !trimmedLine.startsWith('#')) {
+        break;
+      }
+    }
+
+    return workingLines.join('\n');
   }
 }
