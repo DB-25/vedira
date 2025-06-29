@@ -1,68 +1,86 @@
-# Vedira
+#  VEDIRA - Your Lesson Buddy
+## 🚀 **Overview**
 
-A personalized learning companion that creates custom courses tailored to your goals and schedule.
+**VEDIRA** is a **Flutter cross-platform mobile application** that provides personalized AI-powered learning experiences.This is the frontend of the app and this frontend connects to the [**VEDIRA serverless backend API**](../lesson-buddy-api) to deliver custom educational content.
 
-## Features
+> **🔗 Frontend Repository**: `lesson-buddy` - This Flutter mobile app (current repository)  
+> **🔗 Backend Repository**: [`lesson-buddy-api`](../lesson-buddy-api) - Serverless AWS Lambda backend
 
-- **Personalized Learning**: Create custom courses based on your specific learning goals
-- **Flexible Scheduling**: Set your own pace with structured daily lessons
-- **Interactive Quizzes**: Reinforce learning with quizzes after each lesson
-- **Progress Tracking**: Monitor your learning progress and identify areas for improvement
-- **Cross-Platform**: Available on iOS, Android, Web, Windows, macOS, and Linux
+---
 
-## Getting Started
+## ✨ **Features**
 
-This project is a Flutter application. To get started with Flutter development, view the [online documentation](https://docs.flutter.dev/), which offers tutorials, samples, guidance on mobile development, and a full API reference.
+- **🎓 Personalized Learning** - AI-generated custom courses tailored to your goals
+- **📅 Flexible Scheduling** - Learn at your own pace with structured daily lessons
+- **🧠 Interactive Learning** - Quizzes, flashcards, and progress tracking
+- **📱 Cross-Platform** - iOS, Android, Web, Windows, macOS, and Linux
+- **🔐 Secure Authentication** - Email-based registration with JWT tokens
+- **☁️ Cloud-Powered** - Real-time content generation from serverless backend
 
-### Prerequisites
+---
 
-- Flutter SDK (latest stable version)
+## 🛠️ **Tech Stack**
+
+- **Flutter** - Cross-platform UI framework
+- **Dart** - Programming language
+- **HTTP Client** - API communication with serverless backend
+- **Secure Storage** - Local data persistence
+- **State Management** - Reactive UI updates
+
+---
+
+## 🚀 **Quick Start**
+
+### **Prerequisites**
+- Flutter SDK (latest stable)
 - Dart SDK
-- Platform-specific development tools (Xcode for iOS, Android Studio for Android, etc.)
+- Platform development tools (Xcode, Android Studio)
 
-### Installation
-
-1. Clone the repository:
+### **Installation**
 ```bash
-git clone https://github.com/yourusername/vedira.git
-```
-
-2. Navigate to the project directory:
-```bash
-cd vedira
-```
-
-3. Install dependencies:
-```bash
+git clone [your-repo-url]
+cd lesson-buddy
 flutter pub get
-```
-
-4. Run the application:
-```bash
 flutter run
 ```
 
-## Project Structure
+### **Project Structure**
+```
+lib/
+├── screens/          # UI screens and navigation
+├── services/         # API communication with backend
+├── models/           # Data models matching backend API
+├── widgets/          # Reusable UI components
+├── controllers/      # Business logic and state management
+└── utils/           # Constants and utility functions
+```
 
-- `lib/` - Main application code
-  - `screens/` - UI screens and pages
-  - `services/` - Business logic and API services
-  - `models/` - Data models
-  - `widgets/` - Reusable UI components
-  - `utils/` - Utility functions and constants
+---
 
-## Main App Class
+## 🌐 **Backend Integration**
 
-The main application class is `VediraApp`, which serves as the root widget of the application.
+This Flutter app communicates with the **VEDIRA serverless backend** via RESTful APIs:
 
-## Contributing
+- **Authentication** - User registration, login, JWT token management
+- **Course Management** - Fetch personalized courses and lessons
+- **Content Delivery** - Stream AI-generated lessons, quizzes, flashcards
+- **Progress Tracking** - Sync learning progress across devices
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+---
 
-## License
+## 📚 **Complete Documentation**
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+For detailed technical documentation, architecture, and development guides:
+
+**📖 [REPOGUIDE.md](./REPOGUIDE.md)** - Comprehensive technical documentation
+
+---
+
+## 🔗 **Related Repositories**
+
+- **lesson-buddy** - This Flutter mobile application frontend
+- **[lesson-buddy-api](../lesson-buddy-api)** - Serverless AWS Lambda backend
+
+---
+
+*AI-powered learning app built with Flutter*
