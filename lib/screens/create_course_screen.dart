@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import '../screens/course_details_screen.dart';
+import '../screens/home_screen.dart';
 import '../services/api_service.dart';
 import '../utils/logger.dart';
 import '../utils/theme_manager.dart';
@@ -497,19 +498,60 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
         );
       }
     } catch (e) {
-      Logger.e(_tag, 'Course generation failed', error: e);
+      final errorString = e.toString();
+      final isTimeoutError = errorString.contains('Status 504') || errorString.contains('Endpoint request timed out');
+      
+      if (isTimeoutError) {
+        // Handle 504 timeout specifically - course might still be processing
+        Logger.i(_tag, 'Course generation timeout (504), waiting additional 15 seconds before returning to home. Error: $errorString');
 
-      if (mounted) {
-        _loadingController.stop();
-        setState(() => _isLoading = false);
+        if (mounted) {
+          // Update loading message to indicate we're still processing
+          setState(() {
+            _loadingMessage = "Course is being finalized in the background...";
+          });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Failed to generate course. Please try again.'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            duration: const Duration(seconds: 5),
-          ),
-        );
+          // Wait an additional 15 seconds
+          await Future.delayed(const Duration(seconds: 15));
+
+          if (mounted) {
+            _loadingController.stop();
+            setState(() => _isLoading = false);
+
+            // Navigate back to home screen where the user can see their courses
+            // The course might have been created successfully in the background
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+              (route) => false,
+            );
+
+            // Show a neutral message indicating the course may be ready soon
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Course creation initiated. Check your course list - it may appear shortly.'),
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          }
+        }
+      } else {
+        // Handle other API failures normally
+        Logger.e(_tag, 'Course generation failed with non-timeout error: $errorString');
+
+        if (mounted) {
+          _loadingController.stop();
+          setState(() => _isLoading = false);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Failed to generate course. Please try again.'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
       }
     }
   }

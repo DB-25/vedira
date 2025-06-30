@@ -1885,6 +1885,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
     bool hasError = false,
   }) {
     const double imageHeight = 200;
+    final colorScheme = theme.colorScheme;
 
     return Container(
       height: imageHeight,
@@ -1894,10 +1895,14 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            theme.colorScheme.primary.withOpacity(0.2),
-            theme.colorScheme.secondary.withOpacity(0.15),
-            theme.colorScheme.tertiary.withOpacity(0.1),
+            colorScheme.surface,
+            colorScheme.primary.withOpacity(0.08),
+            colorScheme.secondary.withOpacity(0.05),
           ],
+        ),
+        border: Border.all(
+          color: colorScheme.outline.withOpacity(0.1),
+          width: 1,
         ),
       ),
       child: Column(
@@ -1905,37 +1910,75 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
         children: [
           if (isLoading)
             SizedBox(
-              width: 40,
-              height: 40,
+              width: 48,
+              height: 48,
               child: CircularProgressIndicator(
                 strokeWidth: 4,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  theme.colorScheme.primary,
+                  colorScheme.primary,
                 ),
               ),
             )
-          else
+          else if (hasError)
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.1),
-                shape: BoxShape.circle,
+                color: colorScheme.errorContainer.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
               ),
               child: Icon(
-                hasError ? Icons.broken_image_outlined : Icons.auto_stories,
-                size: 48,
-                color: theme.colorScheme.primary.withOpacity(0.8),
+                Icons.broken_image_outlined,
+                size: 56,
+                color: colorScheme.error.withOpacity(0.7),
+              ),
+            )
+          else
+            // Use app logo instead of generic icon
+            Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: colorScheme.outline.withOpacity(0.1),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.shadow.withOpacity(0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.asset(
+                  'lib/assets/transparent_logo_no_text.png',
+                  width: 64,
+                  height: 64,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    // Fallback to icon if logo fails to load
+                    return Icon(
+                      Icons.auto_stories,
+                      size: 64,
+                      color: colorScheme.primary.withOpacity(0.6),
+                    );
+                  },
+                ),
               ),
             ),
           if (!isLoading) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
+              padding: const EdgeInsets.symmetric(horizontal: 40),
               child: Text(
                 hasError ? 'Course image unavailable' : course.title,
                 style: theme.textTheme.headlineSmall?.copyWith(
-                  color: theme.colorScheme.primary.withOpacity(0.9),
+                  color: colorScheme.onSurface.withOpacity(0.8),
                   fontWeight: FontWeight.bold,
+                  height: 1.3,
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 2,

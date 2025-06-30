@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+
 import '../models/course.dart';
 import '../screens/course_details_screen.dart';
 import '../services/api_service.dart';
-import '../utils/logger.dart';
 import '../utils/constants.dart';
+import '../utils/logger.dart';
 import '../utils/theme_manager.dart';
 import 'authenticated_image.dart';
 
@@ -14,10 +15,10 @@ class CourseCard extends StatefulWidget {
   final Function(bool)? onStarToggle; // Callback with new star state
 
   const CourseCard({
-    super.key, 
-    this.course, 
+    super.key,
+    this.course,
     this.isStarred,
-    this.onDeleted, 
+    this.onDeleted,
     this.onStarToggle,
   });
 
@@ -34,7 +35,7 @@ class _CourseCardState extends State<CourseCard> {
 
   Future<void> _toggleStar() async {
     if (widget.course?.courseID.isEmpty ?? true) return;
-    
+
     setState(() {
       _isStarLoading = true;
     });
@@ -42,10 +43,9 @@ class _CourseCardState extends State<CourseCard> {
     try {
       // Calculate new star state and notify parent immediately
       final newStarState = !_isStarred;
-      
+
       // Notify parent with the new star state - parent handles everything
       widget.onStarToggle?.call(newStarState);
-      
     } catch (e) {
       Logger.e(_tag, 'Error toggling star', error: e);
       if (mounted) {
@@ -76,7 +76,8 @@ class _CourseCardState extends State<CourseCard> {
 
     // Debug log to check course ID
     if (widget.course!.courseID.isEmpty) {
-      Logger.e(_tag, 'Empty courseID detected in CourseCard: ${widget.course!.title}');
+      Logger.e(_tag,
+          'Empty courseID detected in CourseCard: ${widget.course!.title}');
     }
 
     // Use consistent card color from theme manager
@@ -112,8 +113,8 @@ class _CourseCardState extends State<CourseCard> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder:
-                      (context) => CourseDetailsScreen(courseId: widget.course!.courseID),
+                  builder: (context) =>
+                      CourseDetailsScreen(courseId: widget.course!.courseID),
                 ),
               );
             },
@@ -167,7 +168,8 @@ class _CourseCardState extends State<CourseCard> {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.primary.withOpacity(0.1),
+                                color:
+                                    theme.colorScheme.primary.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Row(
@@ -207,19 +209,19 @@ class _CourseCardState extends State<CourseCard> {
               ],
             ),
           ),
-          
+
           // Star button overlay (top-right) - Follows UI conventions
           Positioned(
             top: 12,
             right: 12,
             child: Container(
               decoration: BoxDecoration(
-                color: _isStarred 
+                color: _isStarred
                     ? colorScheme.tertiary.withOpacity(0.95)
                     : colorScheme.surface.withOpacity(0.95),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: _isStarred 
+                  color: _isStarred
                       ? colorScheme.tertiary.withOpacity(0.3)
                       : colorScheme.outline.withOpacity(0.2),
                   width: 1,
@@ -246,13 +248,17 @@ class _CourseCardState extends State<CourseCard> {
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                AppConstants.paletteAction, // Use action color for stars
+                                AppConstants
+                                    .paletteAction, // Use action color for stars
                               ),
                             ),
                           )
                         : Icon(
-                            _isStarred ? Icons.star_rounded : Icons.star_outline_rounded,
-                            color: AppConstants.paletteAction, // Use action color for stars
+                            _isStarred
+                                ? Icons.star_rounded
+                                : Icons.star_outline_rounded,
+                            color: AppConstants
+                                .paletteAction, // Use action color for stars
                             size: 16,
                           ),
                   ),
@@ -260,7 +266,7 @@ class _CourseCardState extends State<CourseCard> {
               ),
             ),
           ),
-          
+
           // Delete button overlay (top-left) - Classic placement
           Positioned(
             top: 12,
@@ -316,7 +322,7 @@ class _CourseCardState extends State<CourseCard> {
       builder: (context) {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
-        
+
         // Create solid background for better readability
         final dialogColor = theme.brightness == Brightness.light
             ? colorScheme.surface
@@ -365,9 +371,9 @@ class _CourseCardState extends State<CourseCard> {
                     color: colorScheme.error,
                   ),
                 ),
-                
+
                 const SizedBox(height: 20),
-                
+
                 // Title
                 Text(
                   'Delete Course',
@@ -376,36 +382,36 @@ class _CourseCardState extends State<CourseCard> {
                     color: colorScheme.onSurface,
                   ),
                 ),
-                
+
                 const SizedBox(height: 12),
-                
-                                 // Main message
-                 Text(
-                   'Are you sure you want to delete "${widget.course!.title}"?',
-                   style: theme.textTheme.bodyLarge?.copyWith(
-                     color: colorScheme.onSurface,
-                     height: 1.4,
-                   ),
-                   textAlign: TextAlign.center,
-                 ),
-                
+
+                // Main message
+                Text(
+                  'Are you sure you want to delete "${widget.course!.title}"?',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: colorScheme.onSurface,
+                    height: 1.4,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+
                 const SizedBox(height: 16),
-                
-                                 // Warning message with modern styling
-                 Container(
-                   padding: const EdgeInsets.all(16),
-                   decoration: BoxDecoration(
-                     color: theme.brightness == Brightness.light
-                         ? colorScheme.errorContainer.withOpacity(0.15)
-                         : colorScheme.errorContainer.withOpacity(0.25),
-                     borderRadius: BorderRadius.circular(12),
-                     border: Border.all(
-                       color: theme.brightness == Brightness.light
-                           ? colorScheme.error.withOpacity(0.3)
-                           : colorScheme.error.withOpacity(0.5),
-                       width: 1,
-                     ),
-                   ),
+
+                // Warning message with modern styling
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: theme.brightness == Brightness.light
+                        ? colorScheme.errorContainer.withOpacity(0.15)
+                        : colorScheme.errorContainer.withOpacity(0.25),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: theme.brightness == Brightness.light
+                          ? colorScheme.error.withOpacity(0.3)
+                          : colorScheme.error.withOpacity(0.5),
+                      width: 1,
+                    ),
+                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -416,23 +422,23 @@ class _CourseCardState extends State<CourseCard> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                                                 child: Text(
-                           'This action cannot be undone. All course content, lessons, and progress will be permanently deleted.',
-                           style: theme.textTheme.bodyMedium?.copyWith(
-                             color: theme.brightness == Brightness.light
-                                 ? colorScheme.error
-                                 : colorScheme.onErrorContainer,
-                             fontWeight: FontWeight.w500,
-                             height: 1.4,
-                           ),
-                         ),
+                        child: Text(
+                          'This action cannot be undone. All course content, lessons, and progress will be permanently deleted.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.brightness == Brightness.light
+                                ? colorScheme.error
+                                : colorScheme.onErrorContainer,
+                            fontWeight: FontWeight.w500,
+                            height: 1.4,
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // Action buttons with modern styling
                 Row(
                   children: [
@@ -453,30 +459,29 @@ class _CourseCardState extends State<CourseCard> {
                         ),
                       ),
                     ),
-                    
                     const SizedBox(width: 12),
-                    
-                                         Expanded(
-                       child: ElevatedButton(
-                         onPressed: () => Navigator.pop(context, true),
-                         style: ElevatedButton.styleFrom(
-                           backgroundColor: colorScheme.error,
-                           foregroundColor: Colors.white, // Force white text for accessibility
-                           padding: const EdgeInsets.symmetric(vertical: 16),
-                           elevation: 0,
-                           shape: RoundedRectangleBorder(
-                             borderRadius: BorderRadius.circular(12),
-                           ),
-                         ),
-                         child: Text(
-                           'Delete',
-                           style: theme.textTheme.labelLarge?.copyWith(
-                             fontWeight: FontWeight.bold, // Make it bold
-                             color: Colors.white, // Ensure white color
-                           ),
-                         ),
-                       ),
-                     ),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colorScheme.error,
+                          foregroundColor: Colors
+                              .white, // Force white text for accessibility
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'Delete',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.bold, // Make it bold
+                            color: Colors.white, // Ensure white color
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -497,7 +502,7 @@ class _CourseCardState extends State<CourseCard> {
         builder: (context) {
           final theme = Theme.of(context);
           final colorScheme = theme.colorScheme;
-          
+
           // Create solid background for better readability
           final dialogColor = colorScheme.surface;
 
@@ -530,7 +535,8 @@ class _CourseCardState extends State<CourseCard> {
                     height: 24,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
-                      valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(colorScheme.primary),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -554,32 +560,35 @@ class _CourseCardState extends State<CourseCard> {
     try {
       final apiService = ApiService();
       final success = await apiService.deleteCourse(widget.course!.courseID);
-      
+
       if (context.mounted) {
         Navigator.pop(context); // Close loading dialog
-        
+
         if (success) {
-          Logger.i(_tag, 'Course deleted successfully: ${widget.course!.title}');
-          
+          Logger.i(
+              _tag, 'Course deleted successfully: ${widget.course!.title}');
+
           // Show success message
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Course "${widget.course!.title}" deleted successfully'),
+              content:
+                  Text('Course "${widget.course!.title}" deleted successfully'),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 3),
             ),
           );
-          
+
           // Notify parent widget to refresh the list
           widget.onDeleted?.call();
         }
       }
     } catch (e) {
-      Logger.e(_tag, 'Error deleting course: ${widget.course!.title}', error: e);
-      
+      Logger.e(_tag, 'Error deleting course: ${widget.course!.title}',
+          error: e);
+
       if (context.mounted) {
         Navigator.pop(context); // Close loading dialog
-        
+
         // Show error message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -599,7 +608,8 @@ class _CourseCardState extends State<CourseCard> {
   Widget _buildCoverImage(ThemeData theme) {
     const double imageHeight = 180;
 
-    if (widget.course!.coverImageUrl != null && widget.course!.coverImageUrl!.isNotEmpty) {
+    if (widget.course!.coverImageUrl != null &&
+        widget.course!.coverImageUrl!.isNotEmpty) {
       final imageUrl = AppConstants.getImageUrl(widget.course!.coverImageUrl!);
 
       if (imageUrl.isNotEmpty) {
@@ -634,6 +644,7 @@ class _CourseCardState extends State<CourseCard> {
     bool hasError = false,
   }) {
     const double imageHeight = 180;
+    final colorScheme = theme.colorScheme;
 
     return Container(
       height: imageHeight,
@@ -643,10 +654,14 @@ class _CourseCardState extends State<CourseCard> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            theme.colorScheme.primary.withOpacity(0.15),
-            theme.colorScheme.secondary.withOpacity(0.15),
-            theme.colorScheme.tertiary.withOpacity(0.1),
+            colorScheme.surface,
+            colorScheme.primary.withOpacity(0.05),
+            colorScheme.secondary.withOpacity(0.03),
           ],
+        ),
+        border: Border.all(
+          color: colorScheme.outline.withOpacity(0.1),
+          width: 1,
         ),
       ),
       child: Column(
@@ -654,41 +669,75 @@ class _CourseCardState extends State<CourseCard> {
         children: [
           if (isLoading)
             SizedBox(
-              width: 28,
-              height: 28,
+              width: 32,
+              height: 32,
               child: CircularProgressIndicator(
-                strokeWidth: 2.5,
+                strokeWidth: 3,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  theme.colorScheme.primary,
+                  colorScheme.primary,
                 ),
               ),
             )
-          else
+          else if (hasError)
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.1),
-                shape: BoxShape.circle,
+                color: colorScheme.errorContainer.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(
-                hasError ? Icons.broken_image_outlined : Icons.auto_stories,
-                size: 32,
-                color: theme.brightness == Brightness.light
-                    ? theme.colorScheme.primary.withOpacity(0.8)
-                    : theme.colorScheme.onPrimaryContainer.withOpacity(0.9),
+                Icons.broken_image_outlined,
+                size: 36,
+                color: colorScheme.error.withOpacity(0.7),
+              ),
+            )
+          else
+            // Use app logo instead of generic icon
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: colorScheme.outline.withOpacity(0.1),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.shadow.withOpacity(0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset(
+                  'lib/assets/transparent_logo_no_text.png',
+                  width: 48,
+                  height: 48,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    // Fallback to icon if logo fails to load
+                    return Icon(
+                      Icons.auto_stories,
+                      size: 48,
+                      color: colorScheme.primary.withOpacity(0.6),
+                    );
+                  },
+                ),
               ),
             ),
           if (!isLoading) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
                 hasError ? 'Image unavailable' : widget.course!.title,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: theme.brightness == Brightness.light
-                      ? theme.colorScheme.primary.withOpacity(0.9)
-                      : theme.colorScheme.onPrimaryContainer,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: colorScheme.onSurface.withOpacity(0.8),
                   fontWeight: FontWeight.w600,
+                  height: 1.3,
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 2,
