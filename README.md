@@ -100,6 +100,41 @@ This Flutter app communicates with the **VEDIRA serverless backend** via RESTful
 
 ---
 
+## 🏗️ **Architecture**
+
+- **🚀 22 AWS Lambda Functions** - All business logic runs serverlessly
+- **🔄 AWS Step Functions** - Orchestrate complex content generation workflows
+- **🌐 API Gateway** - RESTful endpoints serving the mobile app
+- **🗄️ DynamoDB + S3** - Scalable data storage
+- **🤖 AI Integration** - Multi-provider AI content generation
+
+---
+
+## 🛠️ **AWS Services Used**
+
+### **Core Compute & Orchestration**
+- **AWS Lambda** (22 functions) - Authentication, course management, AI content generation
+- **AWS Step Functions** - Multi-step workflow orchestration
+- **API Gateway** - HTTP API endpoints
+
+### **Data & Storage**
+- **DynamoDB** (2 tables) - Course plans and flashcards
+- **S3** (3 buckets) - Lesson content, questions, course images
+- **Cognito** - User authentication and JWT management
+
+### **Infrastructure & Monitoring**
+- **AWS CDK** - Infrastructure as Code
+- **CloudWatch** - Logging and monitoring
+- **IAM** - Security and permissions
+
+### **AI & External Integration**
+- **AWS Bedrock** - Claude AI models
+- **External AI APIs** - Google AI Studio (Gemini) integration
+
+> **💡 Implementation Details**: All the architecture, AWS services, and backend logic described above are implemented in the **[VEDIRA Backend Repository](https://github.com/rudra-sett/vedira-api)**. The backend codebase contains the complete serverless infrastructure, Lambda functions, and API implementations.
+
+---
+
 ## 📚 **Complete Documentation**
 
 For detailed technical documentation, architecture, and development guides:
