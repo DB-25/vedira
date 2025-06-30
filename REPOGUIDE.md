@@ -40,6 +40,7 @@ lesson-buddy/
 ├── 📂 macos/                     # macOS-specific configuration
 ├── 📂 lib/                       # Main application code
 │   ├── 📂 assets/                # Static assets (images, fonts)
+│   ├── 📂 components/            # Core UI components (app bars, buttons)
 │   ├── 📂 configs/               # Configuration files
 │   ├── 📂 controllers/           # Business logic controllers
 │   ├── 📂 models/                # Data models and DTOs
@@ -74,7 +75,7 @@ All backend communication is handled through specialized service classes:
 
 ---
 
-## 📱 **Screens & User Interface (9 Screens)**
+## 📱 **Screens & User Interface (10 Screens)**
 
 ### **🔐 Authentication Screens (3 Screens)**
 | Screen | Purpose | Key Features | Navigation |
@@ -91,15 +92,16 @@ All backend communication is handled through specialized service classes:
 | `CourseDetailsScreen` | Course overview and management | Chapter list, progress tracking, course settings | From course selection |
 | `LessonViewScreen` | Lesson content viewer | Markdown rendering, progress tracking, navigation | From chapter selection |
 
-### **🎯 Interactive Learning Screens (2 Screens)**
+### **🎯 Interactive Learning Screens (3 Screens)**
 | Screen | Purpose | Key Features | Navigation |
 |--------|---------|--------------|-----------|
 | `McqQuizScreen` | Multiple-choice quizzes | Question navigation, scoring, results | From lesson or chapter |
+| `FlashcardScreen` | Interactive flashcard study | Card flipping, progress tracking, difficulty rating | From lesson or chapter |
 | `PrivacyPolicyScreen` | Legal and privacy information | Scrollable content, back navigation | From settings or signup |
 
 ---
 
-## 🔧 **Services & Backend Integration (10 Services)**
+## 🔧 **Services & Backend Integration (11 Services)**
 
 ### **🔐 Authentication Services (2 Services)**
 | Service | Purpose | Key Methods | Dependencies |
@@ -114,12 +116,13 @@ All backend communication is handled through specialized service classes:
 | `ApiService` | High-level API interactions | `getCourses()`, `createCourse()`, `getLessonContent()` | ApiClient |
 | `ConnectivityService` | Network connectivity monitoring | `checkConnectivity()`, `onConnectivityChanged` | connectivity_plus |
 
-### **📊 Data Management Services (3 Services)**
+### **📊 Data Management Services (4 Services)**
 | Service | Purpose | Key Methods | Dependencies |
 |---------|---------|-------------|--------------|
 | `ProgressService` | User progress tracking | `updateProgress()`, `getProgress()`, `syncProgress()` | SharedPreferences, ApiService |
 | `StarredCoursesService` | Favorite courses management | `starCourse()`, `unstarCourse()`, `getStarredCourses()` | SharedPreferences |
 | `McqService` | Quiz and questions management | `getQuestions()`, `submitAnswers()`, `getResults()` | ApiService |
+| `FlashcardService` | Flashcard management | `getFlashcards()`, `markReviewed()`, `getFlashcardProgress()` | ApiService |
 
 ### **⚙️ Generation & Processing Services (2 Services)**
 | Service | Purpose | Key Methods | Dependencies |
@@ -129,7 +132,7 @@ All backend communication is handled through specialized service classes:
 
 ---
 
-## 📦 **Data Models & DTOs (8 Models)**
+## 📦 **Data Models & DTOs (9 Models)**
 
 ### **📚 Course-Related Models (4 Models)**
 | Model | Purpose | Key Properties | Usage |
@@ -139,10 +142,11 @@ All backend communication is handled through specialized service classes:
 | `Lesson` | Individual lesson data | `id`, `title`, `content`, `duration`, `completed` | Lesson viewer |
 | `Section` | Lesson content sections | `id`, `type`, `content`, `order` | Content rendering |
 
-### **🎯 Interactive Content Models (2 Models)**
+### **🎯 Interactive Content Models (3 Models)**
 | Model | Purpose | Key Properties | Usage |
 |-------|---------|----------------|-------|
 | `McqQuestion` | Quiz question structure | `id`, `question`, `options`, `correctAnswer`, `explanation` | Quiz screens |
+| `Flashcard` | Flashcard data structure | `id`, `question`, `answer`, `difficulty`, `lastReviewed` | Flashcard study |
 | `LessonPlan` | Course structure planning | `title`, `description`, `chapters`, `estimatedHours` | Course creation |
 
 ### **📊 Progress & Status Models (2 Models)**
@@ -153,7 +157,13 @@ All backend communication is handled through specialized service classes:
 
 ---
 
-## 🧩 **Reusable Widgets & Components (10 Widgets)**
+## 🧩 **Reusable Widgets & Components (12 Widgets)**
+
+### **🏗️ Core Components (2 Components)**
+| Widget | Purpose | Key Features | Used In |
+|--------|---------|--------------|---------|
+| `CustomAppBar` | Standardized app bar | Back navigation, title, actions, theming | All screens |
+| `CustomButtons` | Consistent button styles | Primary, secondary, loading states | Throughout app |
 
 ### **📊 Data Display Widgets (4 Widgets)**
 | Widget | Purpose | Key Features | Used In |
