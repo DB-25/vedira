@@ -1,10 +1,36 @@
 #  VEDIRA - Your Lesson Buddy
 ## 🚀 **Overview**
 
-**VEDIRA** is a **Flutter cross-platform mobile application** that provides personalized AI-powered learning experiences.This is the frontend of the app and this frontend connects to the [**VEDIRA serverless backend API**](../lesson-buddy-api) to deliver custom educational content.
+**VEDIRA** is a **Flutter cross-platform mobile application** that provides personalized AI-powered learning experiences.This is the frontend of the app and this frontend connects to the [**VEDIRA serverless backend API**](https://github.com/rudra-sett/vedira-api) to deliver custom educational content.
 
-> **🔗 Frontend Repository**: `lesson-buddy` - This Flutter mobile app (current repository)  
-> **🔗 Backend Repository**: [`lesson-buddy-api`](../lesson-buddy-api) - Serverless AWS Lambda backend
+> **🔗 Frontend Repository**: [`vedira`](https://github.com/DB-25/vedira) - This Flutter mobile app (current repository)  
+> **🔗 Backend Repository**: [`vedira-api`](https://github.com/rudra-sett/vedira-api) - Serverless AWS Lambda backend
+
+---
+
+## 📱 **Download the App**
+
+### **iOS (iPhone/iPad)**
+Download VEDIRA on iOS through TestFlight:
+
+**TestFlight Link**: [Download on TestFlight](your-testflight-invite-link)
+
+*Scan the QR code below to download on iOS:*
+```
+[QR CODE FOR iOS TESTFLIGHT]
+```
+
+### **Android**
+Download the APK directly:
+
+**APK Download**: [Download APK](your-apk-download-link)
+
+*Scan the QR code below to download on Android:*
+```
+[QR CODE FOR ANDROID APK]
+```
+
+**Note**: For Android installation, you may need to enable "Install from unknown sources" in your device settings.
 
 ---
 
@@ -38,8 +64,8 @@
 
 ### **Installation**
 ```bash
-git clone [your-repo-url]
-cd lesson-buddy
+git clone https://github.com/DB-25/vedira.git
+cd vedira
 flutter pub get
 flutter run
 ```
@@ -78,8 +104,8 @@ For detailed technical documentation, architecture, and development guides:
 
 ## 🔗 **Related Repositories**
 
-- **lesson-buddy** - This Flutter mobile application frontend
-- **[lesson-buddy-api](../lesson-buddy-api)** - Serverless AWS Lambda backend
+- **[vedira](https://github.com/DB-25/vedira)** - This Flutter mobile application frontend
+- **[vedira-api](https://github.com/rudra-sett/vedira-api)** - Serverless AWS Lambda backend
 
 ---
 
