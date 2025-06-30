@@ -112,6 +112,7 @@ class ProgressService {
             completedLessons: {},
             availableLessons: {},
             quizAttempts: {},
+            flashcardAttempts: {},
             studyTimeMinutes: 0,
             isUnlocked: true,
           );
@@ -122,6 +123,7 @@ class ProgressService {
         completedLessons: {...chapterProgress.completedLessons, lessonId},
         availableLessons: {...chapterProgress.availableLessons, lessonId},
         quizAttempts: chapterProgress.quizAttempts,
+        flashcardAttempts: chapterProgress.flashcardAttempts,
         lastStudied: DateTime.now(),
         studyTimeMinutes: chapterProgress.studyTimeMinutes + studyTimeMinutes,
         isUnlocked: chapterProgress.isUnlocked,
@@ -183,6 +185,7 @@ class ProgressService {
           ...chapterProgress.quizAttempts,
           lessonId: updatedAttempts,
         },
+        flashcardAttempts: chapterProgress.flashcardAttempts,
         lastStudied: DateTime.now(),
         studyTimeMinutes: chapterProgress.studyTimeMinutes,
         isUnlocked: chapterProgress.isUnlocked,
@@ -220,6 +223,72 @@ class ProgressService {
     }
   }
 
+  // Save flashcard attempt
+  Future<bool> saveFlashcardAttempt({
+    required String courseId,
+    required String chapterId,
+    required String lessonId,
+    required String lessonName,
+    required FlashcardAttempt flashcardAttempt,
+  }) async {
+    try {
+      var progress = await getCourseProgress(courseId);
+      if (progress == null) return false;
+
+      final chapterProgress = progress.chapterProgress[chapterId];
+      if (chapterProgress == null) return false;
+
+      // Add flashcard attempt to existing attempts
+      final existingAttempts = chapterProgress.flashcardAttempts[lessonId] ?? [];
+      final updatedAttempts = [...existingAttempts, flashcardAttempt];
+
+      final updatedChapterProgress = ChapterProgress(
+        chapterId: chapterProgress.chapterId,
+        chapterName: chapterProgress.chapterName,
+        completedLessons: chapterProgress.completedLessons,
+        availableLessons: chapterProgress.availableLessons,
+        quizAttempts: chapterProgress.quizAttempts,
+        flashcardAttempts: {
+          ...chapterProgress.flashcardAttempts,
+          lessonId: updatedAttempts,
+        },
+        lastStudied: DateTime.now(),
+        studyTimeMinutes: chapterProgress.studyTimeMinutes + flashcardAttempt.studyMinutes,
+        isUnlocked: chapterProgress.isUnlocked,
+      );
+
+      // Add study session for flashcards
+      final studySession = StudySession(
+        startTime: flashcardAttempt.completedAt.subtract(
+          Duration(seconds: flashcardAttempt.timeSpentSeconds),
+        ),
+        endTime: flashcardAttempt.completedAt,
+        chapterId: chapterId,
+        lessonId: lessonId,
+        activity: 'flashcards',
+        metadata: {
+          'totalCards': flashcardAttempt.totalCards,
+          'lessonName': flashcardAttempt.lessonName,
+        },
+      );
+
+      final updatedProgress = progress.copyWith(
+        lastStudied: DateTime.now(),
+        totalStudyTimeMinutes: progress.totalStudyTimeMinutes + flashcardAttempt.studyMinutes,
+        chapterProgress: {
+          ...progress.chapterProgress,
+          chapterId: updatedChapterProgress,
+        },
+        studySessions: [...progress.studySessions, studySession],
+      );
+
+      return await saveCourseProgress(updatedProgress);
+    } catch (e) {
+      Logger.e(_tag, 'Error saving flashcard attempt', error: e);
+      return false;
+    }
+  }
+
   // Update available lessons for a chapter (when content is generated)
   Future<bool> updateAvailableLessons({
     required String courseId,
@@ -239,6 +308,7 @@ class ProgressService {
         completedLessons: chapterProgress.completedLessons,
         availableLessons: lessonIds,
         quizAttempts: chapterProgress.quizAttempts,
+        flashcardAttempts: chapterProgress.flashcardAttempts,
         lastStudied: chapterProgress.lastStudied,
         studyTimeMinutes: chapterProgress.studyTimeMinutes,
         isUnlocked: chapterProgress.isUnlocked,
@@ -278,6 +348,7 @@ class ProgressService {
         'averageQuizScore': progress.averageQuizScore,
         'currentStreak': progress.stats.currentStreak,
         'totalQuizzes': progress.totalQuizzesTaken,
+        'totalFlashcardSessions': progress.totalFlashcardSessions,
         'overallProgress': progress.overallProgress,
       };
     } catch (e) {
@@ -353,6 +424,7 @@ class ProgressService {
           completedLessons: {},
           availableLessons: {},
           quizAttempts: {},
+          flashcardAttempts: {},
           studyTimeMinutes: 0,
           isUnlocked: true, // For now, all chapters are unlocked
         );

@@ -3,7 +3,9 @@ import 'dart:math' as math;
 
 import '../models/flashcard.dart';
 import '../models/section.dart';
+import '../models/user_progress.dart';
 import '../services/flashcard_service.dart';
+import '../services/progress_service.dart';
 import '../utils/logger.dart';
 import '../utils/theme_manager.dart';
 import '../components/custom_app_bar.dart';
@@ -32,10 +34,12 @@ class FlashcardScreen extends StatefulWidget {
 
 class _FlashcardScreenState extends State<FlashcardScreen> with TickerProviderStateMixin {
   final FlashcardService _flashcardService = FlashcardService();
+  final ProgressService _progressService = ProgressService();
   final String _tag = 'FlashcardScreen';
   late PageController _pageController;
   late AnimationController _flipController;
   late Animation<double> _flipAnimation;
+  late DateTime _sessionStartTime;
 
   List<Flashcard> _flashcards = [];
   Map<int, bool> _isFlipped = {}; // Track which cards are flipped
@@ -47,6 +51,7 @@ class _FlashcardScreenState extends State<FlashcardScreen> with TickerProviderSt
   @override
   void initState() {
     super.initState();
+    _sessionStartTime = DateTime.now();
     _pageController = PageController();
     _flipController = AnimationController(
       duration: const Duration(milliseconds: 600),
@@ -157,6 +162,45 @@ class _FlashcardScreenState extends State<FlashcardScreen> with TickerProviderSt
       curve: Curves.easeInOut,
     );
     _flipController.reset();
+  }
+
+  Future<void> _saveFlashcardProgress() async {
+    try {
+      final completedAt = DateTime.now();
+      final timeSpentSeconds = completedAt.difference(_sessionStartTime).inSeconds;
+
+      final flashcardAttempt = FlashcardAttempt(
+        lessonId: widget.lessonId,
+        lessonName: widget.lessonTitle,
+        totalCards: _flashcards.length,
+        completedAt: completedAt,
+        timeSpentSeconds: timeSpentSeconds,
+        metadata: {
+          'cardsFlipped': _isFlipped.values.where((flipped) => flipped).length,
+          'sessionType': 'flashcard_review',
+        },
+      );
+
+      final success = await _progressService.saveFlashcardAttempt(
+        courseId: widget.courseId,
+        chapterId: widget.chapterId,
+        lessonId: widget.lessonId,
+        lessonName: widget.lessonTitle,
+        flashcardAttempt: flashcardAttempt,
+      );
+
+      if (success) {
+        Logger.i(_tag, 'Flashcard progress saved successfully', data: {
+          'lessonId': widget.lessonId,
+          'totalCards': _flashcards.length,
+          'timeSpentMinutes': (timeSpentSeconds / 60).ceil(),
+        });
+      } else {
+        Logger.w(_tag, 'Failed to save flashcard progress');
+      }
+    } catch (e) {
+      Logger.e(_tag, 'Error saving flashcard progress', error: e);
+    }
   }
 
   @override
@@ -570,25 +614,45 @@ class _FlashcardScreenState extends State<FlashcardScreen> with TickerProviderSt
         children: [
           // Previous button
           Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _currentCardIndex > 0 ? _previousCard : null,
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('Previous'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                side: BorderSide(
-                  color: _currentCardIndex > 0 
-                      ? colorScheme.outline 
-                      : colorScheme.outline.withValues(alpha: 0.3),
-                ),
-                foregroundColor: _currentCardIndex > 0 
-                    ? colorScheme.onSurface 
-                    : colorScheme.onSurface.withValues(alpha: 0.3),
-              ),
-            ),
+            child: _currentCardIndex > 0
+                ? OutlinedButton(
+                    onPressed: _previousCard,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      side: BorderSide(color: colorScheme.outline),
+                      foregroundColor: colorScheme.onSurface,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.arrow_back, size: 18),
+                        const SizedBox(width: 8),
+                        const Text('Previous'),
+                      ],
+                    ),
+                  )
+                : OutlinedButton(
+                    onPressed: null,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3)),
+                      foregroundColor: colorScheme.onSurface.withValues(alpha: 0.3),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.arrow_back, size: 18),
+                        const SizedBox(width: 8),
+                        const Text('Previous'),
+                      ],
+                    ),
+                  ),
           ),
           const SizedBox(width: 16),
           
@@ -608,25 +672,55 @@ class _FlashcardScreenState extends State<FlashcardScreen> with TickerProviderSt
           ),
           const SizedBox(width: 16),
           
-          // Next button
+          // Next/Finish button
           Expanded(
-            child: FilledButton.icon(
-              onPressed: _currentCardIndex < _flashcards.length - 1 ? _nextCard : null,
-              icon: const Icon(Icons.arrow_forward),
-              label: const Text('Next'),
-              style: FilledButton.styleFrom(
-                backgroundColor: _currentCardIndex < _flashcards.length - 1 
-                    ? colorScheme.primary 
-                    : colorScheme.primary.withValues(alpha: 0.3),
-                foregroundColor: _currentCardIndex < _flashcards.length - 1 
-                    ? colorScheme.onPrimary 
-                    : colorScheme.onPrimary.withValues(alpha: 0.7),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
+            child: _currentCardIndex < _flashcards.length - 1
+                ? FilledButton(
+                    onPressed: _nextCard,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('Next'),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.arrow_forward, size: 18),
+                      ],
+                    ),
+                  )
+                : FilledButton(
+                    onPressed: () async {
+                      await _saveFlashcardProgress();
+                      if (mounted) {
+                        Navigator.of(context).pop({
+                          'flashcardsCompleted': true,
+                          'totalCards': _flashcards.length,
+                        });
+                      }
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: colorScheme.tertiary,
+                      foregroundColor: colorScheme.onTertiary,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('Complete'),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.check_circle, size: 18),
+                      ],
+                    ),
+                  ),
           ),
         ],
       ),

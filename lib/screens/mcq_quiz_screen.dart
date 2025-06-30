@@ -53,7 +53,7 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
   bool _hasError = false;
   String _errorMessage = '';
   int _currentQuestionIndex = 0;
-  bool _quizCompleted = false;
+
   DateTime? _quizStartTime;
   bool _progressSaved = false;
 
@@ -260,29 +260,43 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
                   children: [
                     if (questionIndex < _questions.length - 1) ...[
                       Expanded(
-                        child: ElevatedButton.icon(
+                        child: ElevatedButton(
                           onPressed: () {
                             Navigator.of(context).pop();
                             _goToQuestion(questionIndex + 1);
                           },
-                          icon: const Icon(Icons.arrow_forward),
-                          label: const Text('Next Question'),
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Text('Next'),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.arrow_forward, size: 18),
+                            ],
                           ),
                         ),
                       ),
                     ] else ...[
                       Expanded(
-                        child: ElevatedButton.icon(
+                        child: ElevatedButton(
                           onPressed: () async {
                             Navigator.of(context).pop();
                             await _completeQuiz();
                           },
-                          icon: const Icon(Icons.flag),
-                          label: const Text('View Results'),
                           style: ElevatedButton.styleFrom(
+                            backgroundColor: theme.colorScheme.primary,
+                            foregroundColor: theme.colorScheme.onPrimary,
                             padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Text('Complete'),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.flag, size: 18),
+                            ],
                           ),
                         ),
                       ),
@@ -311,7 +325,7 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
   }
 
   Widget _buildBottomActionBar() {
-    if (_isLoading || _hasError || _quizCompleted) {
+    if (_isLoading || _hasError) {
       return const SizedBox.shrink();
     }
 
@@ -336,28 +350,75 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
       child: SafeArea(
         child: Row(
           children: [
-            // View Explanation button (only show if revealed and explanation exists)
-            if (isRevealed && currentQuestion.explanation.isNotEmpty) ...[
-              Expanded(
-                flex: 1,
-                child: OutlinedButton.icon(
-                  onPressed: () => _showExplanationBottomSheet(
-                    currentQuestion.explanation,
-                    _currentQuestionIndex,
-                  ),
-                  icon: Icon(Icons.lightbulb_outline, size: 18),
-                  label: Text('Explain'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+            // Previous button
+            Expanded(
+              child: _currentQuestionIndex > 0
+                  ? OutlinedButton(
+                      onPressed: () => _goToQuestion(_currentQuestionIndex - 1),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        side: BorderSide(color: colorScheme.outline),
+                        foregroundColor: colorScheme.onSurface,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.arrow_back, size: 18),
+                          const SizedBox(width: 8),
+                          const Text('Previous'),
+                        ],
+                      ),
+                    )
+                  : OutlinedButton(
+                      onPressed: null,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3)),
+                        foregroundColor: colorScheme.onSurface.withValues(alpha: 0.3),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.arrow_back, size: 18),
+                          const SizedBox(width: 8),
+                          const Text('Previous'),
+                        ],
+                      ),
+                    ),
+            ),
+            
+            const SizedBox(width: 16),
+            
+            // Explanation button (center, if available)
+            if (isRevealed && currentQuestion.explanation.isNotEmpty)
+              FilledButton.icon(
+                onPressed: () => _showExplanationBottomSheet(
+                  currentQuestion.explanation,
+                  _currentQuestionIndex,
+                ),
+                icon: const Icon(Icons.lightbulb_outline, size: 18),
+                label: const Text('Explain'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: colorScheme.tertiary,
+                  foregroundColor: colorScheme.onTertiary,
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-            ],
+            
+            if (isRevealed && currentQuestion.explanation.isNotEmpty)
+              const SizedBox(width: 16),
 
-            // Main action button
+            // Submit/Next/Complete button
             Expanded(
-              flex: 2,
               child: _buildMainActionButton(selectedIndex, isRevealed),
             ),
           ],
@@ -367,36 +428,90 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
   }
 
   Widget _buildMainActionButton(int? selectedIndex, bool isRevealed) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     if (!isRevealed) {
       // Show Submit Answer button
-      return ElevatedButton.icon(
-        onPressed: selectedIndex != null
-            ? () => _submitAnswer(_currentQuestionIndex)
-            : null,
-        icon: Icon(Icons.check, size: 18),
-        label: Text('Submit Answer'),
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-        ),
-      );
+      return selectedIndex != null
+          ? FilledButton(
+              onPressed: () => _submitAnswer(_currentQuestionIndex),
+              style: FilledButton.styleFrom(
+                backgroundColor: colorScheme.secondary,
+                foregroundColor: colorScheme.onSecondary,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                   Text('Submit Answer'),
+                   SizedBox(width: 8),
+                   Icon(Icons.check, size: 18),
+                ],
+              ),
+            )
+          : FilledButton(
+              onPressed: null,
+              style: FilledButton.styleFrom(
+                backgroundColor: colorScheme.secondary.withValues(alpha: 0.3),
+                foregroundColor: colorScheme.onSecondary.withValues(alpha: 0.7),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                   Text('Select Answer'),
+                   SizedBox(width: 8),
+                   Icon(Icons.radio_button_unchecked, size: 18),
+                ],
+              ),
+            );
     } else {
-      // Show Next Question or View Results button
+      // Show Next Question or Complete Quiz button
       if (_currentQuestionIndex < _questions.length - 1) {
-        return ElevatedButton.icon(
+        return FilledButton(
           onPressed: () => _goToQuestion(_currentQuestionIndex + 1),
-          icon: Icon(Icons.arrow_forward, size: 18),
-          label: Text('Next Question'),
-          style: ElevatedButton.styleFrom(
+          style: FilledButton.styleFrom(
+            backgroundColor: colorScheme.primary,
+            foregroundColor: colorScheme.onPrimary,
             padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+               Text('Next'),
+               SizedBox(width: 8),
+               Icon(Icons.arrow_forward, size: 18),
+            ],
           ),
         );
       } else {
-        return ElevatedButton.icon(
+        return FilledButton(
           onPressed: () async => await _completeQuiz(),
-          icon: Icon(Icons.flag, size: 18),
-          label: Text('View Results'),
-          style: ElevatedButton.styleFrom(
+          style: FilledButton.styleFrom(
+            backgroundColor: colorScheme.primary,
+            foregroundColor: colorScheme.onPrimary,
             padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+               Text('Complete'),
+               SizedBox(width: 8),
+               Icon(Icons.flag, size: 18),
+            ],
           ),
         );
       }
@@ -404,18 +519,19 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
   }
 
   Future<void> _completeQuiz() async {
-    setState(() {
-      _quizCompleted = true;
-    });
-
     // Save quiz attempt to progress
     if (!_progressSaved) {
       await _saveQuizAttempt();
     }
 
-    // Show completion dialog instead of just showing results
+    // Return to previous screen with completion data (like flashcards)
     if (mounted) {
-      await _showCompletionDialog();
+      Navigator.of(context).pop({
+        'quizCompleted': true,
+        'score': _correctAnswers,
+        'totalQuestions': _questions.length,
+        'scorePercentage': _scorePercentage,
+      });
     }
   }
 
@@ -502,7 +618,7 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
       _shuffledIndexes.clear();
       _shuffledOptions.clear();
       _currentQuestionIndex = 0;
-      _quizCompleted = false;
+
       _quizStartTime = DateTime.now();
       _progressSaved = false;
     });
@@ -750,9 +866,7 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
       );
     }
 
-    if (_quizCompleted) {
-      return _buildQuizResults();
-    }
+
 
     return _buildQuizContent();
   }
@@ -949,176 +1063,5 @@ class _McqQuizScreenState extends State<McqQuizScreen> {
     );
   }
 
-  Widget _buildQuizResults() {
-    // This should not be reached since we use completion dialog now
-    // But keeping as fallback just in case
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Center(child: const CircularProgressIndicator()),
-    );
-  }
-
-  Future<void> _showCompletionDialog() async {
-    if (!mounted) return;
-
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    final result = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: colorScheme.shadow.withValues(alpha: 0.6),
-      builder: (BuildContext context) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          child: Container(
-            margin: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: colorScheme.cardColor,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header with celebration
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    children: [
-                      // Simple checkmark
-                      Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: colorScheme.success.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.check_circle,
-                          color: colorScheme.success,
-                          size: 32,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Quiz Complete!',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'You answered $_correctAnswers out of ${_questions.length} questions correctly',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurface.withValues(alpha: 0.7),
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Actions
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      // Primary action - Continue or Retake based on context
-                      if (_hasNextLesson()) ...[
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () => Navigator.of(context).pop('next'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: colorScheme.primary,
-                              foregroundColor: colorScheme.onPrimary,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            icon: const Icon(Icons.arrow_forward, size: 18),
-                            label: const Text('Continue Learning'),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-
-                      // Secondary actions
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () => Navigator.of(context).pop('retake'),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                side: BorderSide(color: colorScheme.outline),
-                              ),
-                              icon: const Icon(Icons.refresh, size: 18),
-                              label: const Text('Retry'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () => Navigator.of(context).pop('back'),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                side: BorderSide(color: colorScheme.outline),
-                              ),
-                              icon: const Icon(Icons.list, size: 18),
-                              label: const Text('Overview'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    // Handle user's choice
-    if (result != null && mounted) {
-      switch (result) {
-        case 'retake':
-          _resetQuiz();
-          break;
-        case 'next':
-          _navigateToNextLesson();
-          break;
-        case 'back':
-          // Return with quiz completion result to refresh course details
-          Navigator.of(context).pop({
-            'quizCompleted': true,
-            'score': _correctAnswers,
-            'totalQuestions': _questions.length,
-            'scorePercentage': _scorePercentage,
-          });
-          break;
-      }
-    }
-  }
-
-  String _getEncouragingMessage(double scorePercentage) {
-    if (scorePercentage >= 90) return 'Outstanding work! 🌟';
-    if (scorePercentage >= 80) return 'Excellent progress! 🎉';
-    if (scorePercentage >= 70) return 'Well done! Keep it up! 👏';
-    if (scorePercentage >= 60) return 'Good effort! You\'re learning! 📚';
-    return 'Great attempt! Learning is a journey! 🚀';
-  }
 }

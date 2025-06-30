@@ -74,6 +74,12 @@ class UserProgress {
         .fold(0, (sum, count) => sum + count);
   }
 
+  int get totalFlashcardSessions {
+    return chapterProgress.values
+        .map((chapter) => chapter.getTotalFlashcardSessions())
+        .fold(0, (sum, count) => sum + count);
+  }
+
   double get averageQuizScore {
     List<double> bestScores = [];
 
@@ -122,6 +128,7 @@ class ChapterProgress {
   final Set<String> completedLessons;
   final Set<String> availableLessons;
   final Map<String, List<QuizAttempt>> quizAttempts; // lessonId -> attempts
+  final Map<String, List<FlashcardAttempt>> flashcardAttempts; // lessonId -> attempts
   final DateTime? lastStudied;
   final int studyTimeMinutes;
   final bool isUnlocked;
@@ -132,6 +139,7 @@ class ChapterProgress {
     required this.completedLessons,
     required this.availableLessons,
     required this.quizAttempts,
+    required this.flashcardAttempts,
     this.lastStudied,
     required this.studyTimeMinutes,
     required this.isUnlocked,
@@ -151,6 +159,14 @@ class ChapterProgress {
               .toList(),
         ),
       ),
+      flashcardAttempts: (json['flashcardAttempts'] as Map<String, dynamic>? ?? {}).map(
+        (key, value) => MapEntry(
+          key,
+          (value as List)
+              .map((attempt) => FlashcardAttempt.fromJson(attempt))
+              .toList(),
+        ),
+      ),
       lastStudied:
           json['lastStudied'] != null
               ? DateTime.tryParse(json['lastStudied'])
@@ -167,6 +183,10 @@ class ChapterProgress {
       'completedLessons': completedLessons.toList(),
       'availableLessons': availableLessons.toList(),
       'quizAttempts': quizAttempts.map(
+        (key, value) =>
+            MapEntry(key, value.map((attempt) => attempt.toJson()).toList()),
+      ),
+      'flashcardAttempts': flashcardAttempts.map(
         (key, value) =>
             MapEntry(key, value.map((attempt) => attempt.toJson()).toList()),
       ),
@@ -198,6 +218,27 @@ class ChapterProgress {
   bool hasQuizAttempt(String lessonId) {
     return quizAttempts.containsKey(lessonId) &&
         quizAttempts[lessonId]!.isNotEmpty;
+  }
+
+  bool hasFlashcardAttempt(String lessonId) {
+    return flashcardAttempts.containsKey(lessonId) &&
+        flashcardAttempts[lessonId]!.isNotEmpty;
+  }
+
+  FlashcardAttempt? getLatestFlashcardAttempt(String lessonId) {
+    final attempts = flashcardAttempts[lessonId];
+    if (attempts == null || attempts.isEmpty) return null;
+
+    return attempts.reduce(
+      (latest, current) =>
+          current.completedAt.isAfter(latest.completedAt) ? current : latest,
+    );
+  }
+
+  int getTotalFlashcardSessions() {
+    return flashcardAttempts.values
+        .map((attempts) => attempts.length)
+        .fold(0, (sum, count) => sum + count);
   }
 }
 
@@ -275,12 +316,57 @@ class QuizAttempt {
   }
 }
 
+class FlashcardAttempt {
+  final String lessonId;
+  final String lessonName;
+  final int totalCards;
+  final DateTime completedAt;
+  final int timeSpentSeconds;
+  final Map<String, dynamic> metadata; // Extra data like cards reviewed, etc.
+
+  FlashcardAttempt({
+    required this.lessonId,
+    required this.lessonName,
+    required this.totalCards,
+    required this.completedAt,
+    required this.timeSpentSeconds,
+    required this.metadata,
+  });
+
+  factory FlashcardAttempt.fromJson(Map<String, dynamic> json) {
+    return FlashcardAttempt(
+      lessonId: json['lessonId'] ?? '',
+      lessonName: json['lessonName'] ?? '',
+      totalCards: json['totalCards'] ?? 0,
+      completedAt:
+          DateTime.tryParse(json['completedAt'] ?? '') ?? DateTime.now(),
+      timeSpentSeconds: json['timeSpentSeconds'] ?? 0,
+      metadata: Map<String, dynamic>.from(json['metadata'] ?? {}),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'lessonId': lessonId,
+      'lessonName': lessonName,
+      'totalCards': totalCards,
+      'completedAt': completedAt.toIso8601String(),
+      'timeSpentSeconds': timeSpentSeconds,
+      'metadata': metadata,
+    };
+  }
+
+  int get studyMinutes {
+    return (timeSpentSeconds / 60).ceil();
+  }
+}
+
 class StudySession {
   final DateTime startTime;
   final DateTime endTime;
   final String chapterId;
   final String lessonId;
-  final String activity; // 'reading', 'quiz', 'review'
+  final String activity; // 'reading', 'quiz', 'flashcards', 'review'
   final Map<String, dynamic> metadata; // Extra data like quiz score, etc.
 
   StudySession({

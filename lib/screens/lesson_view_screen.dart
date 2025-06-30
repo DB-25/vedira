@@ -1033,18 +1033,7 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
               if (_hasFlashcards)
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pushNamed(
-                        context,
-                        '/flashcard',
-                        arguments: {
-                          'courseId': widget.courseId,
-                          'chapterId': widget.chapterId,
-                          'lessonId': widget.lessonId,
-                          'lessonTitle': widget.lessonTitle,
-                        },
-                      );
-                    },
+                    onPressed: _navigateToFlashcards,
                     icon: const Icon(Icons.style),
                     label: const Text('Flashcards'),
                     style: ElevatedButton.styleFrom(

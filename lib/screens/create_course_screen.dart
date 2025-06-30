@@ -10,6 +10,14 @@ import '../utils/logger.dart';
 import '../utils/theme_manager.dart';
 import '../components/custom_app_bar.dart';
 
+class _ReviewItem {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  _ReviewItem(this.label, this.value, this.icon);
+}
+
 class CreateCourseScreen extends StatefulWidget {
   const CreateCourseScreen({super.key});
 
@@ -26,6 +34,9 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
   final TextEditingController _customInstructionsController = TextEditingController();
   final TextEditingController _totalTimeController = TextEditingController();
   final TextEditingController _customTimelineController = TextEditingController();
+  
+  // Focus nodes
+  final FocusNode _customTimelineFocusNode = FocusNode();
 
   // Onboarding state
   int _currentStep = 0;
@@ -44,6 +55,40 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
   PlatformFile? _selectedFile;
   String? _documentBase64;
   bool _isUploadingFile = false;
+  
+  // Multi-select preferences tracking
+  Set<String> _selectedPreferences = {};
+  
+  // Organized preference options
+  final List<Map<String, dynamic>> _preferenceCategories = [
+    {
+      'title': 'Content Style',
+      'options': [
+        {'id': 'simple_language', 'text': 'Use simple language', 'icon': Icons.abc},
+        {'id': 'practical_examples', 'text': 'Focus on practical examples', 'icon': Icons.build},
+        {'id': 'real_world_cases', 'text': 'Include real-world case studies', 'icon': Icons.business_center},
+        {'id': 'historical_context', 'text': 'Include historical context', 'icon': Icons.history_edu},
+      ]
+    },
+    {
+      'title': 'Learning Format',
+      'options': [
+        {'id': 'short_lessons', 'text': 'Short, digestible lessons', 'icon': Icons.timer},
+        {'id': 'step_by_step', 'text': 'Step-by-step explanations', 'icon': Icons.stairs},
+        {'id': 'fun_engaging', 'text': 'Make it fun and engaging', 'icon': Icons.celebration},
+        {'id': 'avoid_theory', 'text': 'Avoid heavy theory', 'icon': Icons.not_interested},
+      ]
+    },
+    {
+      'title': 'Practice & Testing',
+      'options': [
+        {'id': 'quiz_questions', 'text': 'Include plenty of quiz questions', 'icon': Icons.quiz},
+        {'id': 'flashcards', 'text': 'Include lots of flashcards', 'icon': Icons.style},
+        {'id': 'certification', 'text': 'Prepare for certification', 'icon': Icons.workspace_premium},
+        {'id': 'current_trends', 'text': 'Focus on current trends', 'icon': Icons.trending_up},
+      ]
+    },
+  ];
   
   // Loading animation
   late AnimationController _loadingController;
@@ -100,15 +145,29 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
     _loadingAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _loadingController, curve: Curves.easeInOut),
     );
+    
+    // Add listener to topic controller to sync chip selection states
+    _topicController.addListener(_onTopicTextChanged);
+    
     Logger.i(_tag, 'Screen initialized');
+  }
+
+  void _onTopicTextChanged() {
+    // Force rebuild when text changes to update chip selection states
+    setState(() {
+      // The topic chips will automatically show correct selection state
+      // based on _topicController.text == topic comparison
+    });
   }
 
   @override
   void dispose() {
+    _topicController.removeListener(_onTopicTextChanged);
     _topicController.dispose();
     _customInstructionsController.dispose();
     _totalTimeController.dispose();
     _customTimelineController.dispose();
+    _customTimelineFocusNode.dispose();
     _loadingController.dispose();
     Logger.i(_tag, 'Screen disposed');
     super.dispose();
@@ -751,24 +810,54 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
           const SizedBox(height: 24),
         ],
         
-        Text(
-          _selectedPath == 'document' 
-            ? 'Course Title (Optional)' 
-            : 'What do you want to learn?',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: colorScheme.onSurface,
-          ),
+        Row(
+          children: [
+            Icon(
+              _selectedPath == 'document' ? Icons.title : Icons.lightbulb,
+              color: colorScheme.primary,
+              size: 28,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _selectedPath == 'document' 
+                  ? 'Course Title (Optional)' 
+                  : 'What do you want to learn?',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
-        Text(
-          _selectedPath == 'document'
-            ? 'Leave empty to auto-generate from document'
-            : 'Enter any topic you\'re interested in',
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: colorScheme.onSurface.withOpacity(0.7),
+        if (_selectedPath == 'document')
+          Text(
+            'Leave empty to auto-generate from document',
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: colorScheme.onSurface.withOpacity(0.7),
+            ),
+          )
+        else
+          Row(
+            children: [
+              Icon(
+                Icons.radio_button_checked,
+                color: colorScheme.primary,
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Choose one topic or enter your own',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurface.withOpacity(0.7),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
         const SizedBox(height: 16),
         
         if (_selectedPath == 'scratch') ...[
@@ -776,24 +865,7 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
             spacing: 8,
             runSpacing: 8,
             children: _topicSuggestions.map((topic) => 
-              GestureDetector(
-                onTap: () => setState(() => _topicController.text = topic),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
-                  ),
-                  child: Text(
-                    topic,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.primary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ),
+              _buildTopicSuggestionChip(topic, _topicController.text == topic),
             ).toList(),
           ),
           const SizedBox(height: 16),
@@ -939,10 +1011,13 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
           const SizedBox(height: 16),
           TextFormField(
             controller: _customTimelineController,
+            focusNode: _customTimelineFocusNode,
+            textInputAction: TextInputAction.done,
             decoration: InputDecoration(
               labelText: 'Custom Timeline',
               hintText: 'e.g., 2 days, 6 weeks, 4 months, 1 year, summer break...',
               prefixIcon: Icon(Icons.schedule, color: colorScheme.tertiary),
+              suffixIcon: Icon(Icons.edit, color: colorScheme.primary.withOpacity(0.7), size: 20),
               filled: true,
               fillColor: colorScheme.surface.withOpacity(0.5),
               border: OutlineInputBorder(
@@ -979,6 +1054,15 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
             _customTimelineController.clear();
           }
         });
+        
+        // Auto-focus the custom timeline text field when "Custom" is selected
+        if (isCustom) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_customTimelineFocusNode.canRequestFocus) {
+              _customTimelineFocusNode.requestFocus();
+            }
+          });
+        }
       },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1070,12 +1154,24 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Any special requirements?',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: colorScheme.onSurface,
-          ),
+        Row(
+          children: [
+            Icon(
+              Icons.tune,
+              color: colorScheme.primary,
+              size: 28,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Any special requirements?',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         Text(
@@ -1112,67 +1208,247 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
         
         const SizedBox(height: 24),
         
-        // Quick preference chips
-        Text(
-          'Common preferences:',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: colorScheme.onSurface,
-          ),
-        ),
-        const SizedBox(height: 12),
-        
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
+        // Organized preference categories
+        Row(
           children: [
-            _buildPreferenceChip('Use simple language'),
-            _buildPreferenceChip('Focus on practical examples'),
-            _buildPreferenceChip('Include plenty of quiz questions'),
-            _buildPreferenceChip('Make it fun and engaging'),
-            _buildPreferenceChip('Step-by-step explanations'),
-            _buildPreferenceChip('Include lots of flashcards'),
-            _buildPreferenceChip('Avoid heavy theory'),
-            _buildPreferenceChip('Include real-world case studies'),
-            _buildPreferenceChip('Short, digestible lessons'),
-            _buildPreferenceChip('Prepare for certification'),
-            _buildPreferenceChip('Include historical context'),
-            _buildPreferenceChip('Focus on current trends'),
+            Expanded(
+              child: Text(
+                'Customize your learning experience:',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ),
+            if (_selectedPreferences.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: colorScheme.secondary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${_selectedPreferences.length} selected',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
           ],
         ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(
+              Icons.check_box,
+              color: colorScheme.secondary,
+              size: 16,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'Select any preferences that matter to you (tap multiple)',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface.withOpacity(0.7),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        
+        ..._preferenceCategories.map((category) => _buildPreferenceCategory(category)),
       ],
     );
   }
 
-  Widget _buildPreferenceChip(String text) {
+  Widget _buildTopicSuggestionChip(String topic, bool isSelected) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     
     return GestureDetector(
-      onTap: () {
-        final currentText = _customInstructionsController.text;
-        if (currentText.isEmpty) {
-          _customInstructionsController.text = text;
-        } else if (!currentText.contains(text)) {
-          _customInstructionsController.text = '$currentText, $text';
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      onTap: () => setState(() => _topicController.text = topic),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: colorScheme.primary.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
-        ),
-        child: Text(
-          text,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: colorScheme.primary,
-            fontWeight: FontWeight.w500,
+          color: isSelected 
+            ? colorScheme.primary 
+            : colorScheme.primary.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected 
+              ? colorScheme.primary 
+              : colorScheme.primary.withOpacity(0.3),
+            width: isSelected ? 2 : 1,
           ),
+          boxShadow: isSelected ? [
+            BoxShadow(
+              color: colorScheme.primary.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ] : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isSelected) ...[
+              Icon(
+                Icons.check_circle,
+                color: colorScheme.onPrimary,
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              topic,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: isSelected 
+                  ? colorScheme.onPrimary 
+                  : colorScheme.primary,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _buildMultiSelectChip({
+    required String id,
+    required String text,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected 
+            ? colorScheme.secondary 
+            : colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected 
+              ? colorScheme.secondary 
+              : colorScheme.outline.withOpacity(0.3),
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: isSelected ? [
+            BoxShadow(
+              color: colorScheme.secondary.withOpacity(0.3),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ] : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? Icons.check_circle : icon,
+              color: isSelected 
+                ? colorScheme.onSecondary 
+                : colorScheme.onSurface.withOpacity(0.7),
+              size: 16,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              text,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: isSelected 
+                  ? colorScheme.onSecondary 
+                  : colorScheme.onSurface,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreferenceCategory(Map<String, dynamic> category) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            category['title'],
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: (category['options'] as List).map((option) {
+              final isSelected = _selectedPreferences.contains(option['id']);
+              return _buildMultiSelectChip(
+                id: option['id'],
+                text: option['text'],
+                icon: option['icon'],
+                isSelected: isSelected,
+                onTap: () {
+                  setState(() {
+                    if (isSelected) {
+                      _selectedPreferences.remove(option['id']);
+                    } else {
+                      _selectedPreferences.add(option['id']);
+                    }
+                  });
+                  _updateCustomInstructionsFromPreferences();
+                },
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _updateCustomInstructionsFromPreferences() {
+    if (_selectedPreferences.isEmpty) return;
+    
+    final selectedTexts = <String>[];
+    for (final category in _preferenceCategories) {
+      for (final option in category['options']) {
+        if (_selectedPreferences.contains(option['id'])) {
+          selectedTexts.add(option['text']);
+        }
+      }
+    }
+    
+    final currentText = _customInstructionsController.text;
+    final basePreferences = selectedTexts.join(', ');
+    
+    if (currentText.isEmpty) {
+      _customInstructionsController.text = basePreferences;
+    } else {
+      // Only update if user hasn't manually edited the field
+      final hasCustomText = !_preferenceCategories
+          .expand((c) => c['options'])
+          .any((o) => currentText.contains(o['text']));
+      
+      if (!hasCustomText && basePreferences.isNotEmpty) {
+        _customInstructionsController.text = basePreferences;
+      }
+    }
   }
 
   Widget _buildReviewStep() {
@@ -1182,62 +1458,150 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Review your course plan',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: colorScheme.onSurface,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Everything looks good? Let\'s create your personalized course!',
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: colorScheme.onSurface.withOpacity(0.7),
-          ),
+        // Header with icon
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: colorScheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.auto_awesome,
+                color: colorScheme.primary,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Ready to Create',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  Text(
+                    'Your personalized course plan',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 24),
         
+        // Course Overview Card
+        _buildReviewCard(
+          icon: Icons.school,
+          title: 'Course Overview',
+          items: [
+            if (_selectedPath == 'document' && _selectedFile != null)
+              _ReviewItem('Document', _selectedFile!.name, Icons.upload_file),
+            _ReviewItem(
+              'Topic', 
+              _topicController.text.isEmpty ? 'Auto-generated' : _topicController.text,
+              Icons.lightbulb,
+            ),
+            if (_learningGoal.isNotEmpty)
+              _ReviewItem(
+                'Learning Goal', 
+                _learningGoals.firstWhere((g) => g['id'] == _learningGoal)['title'] ?? '',
+                Icons.flag,
+              ),
+          ],
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Learning Style Card
+        _buildReviewCard(
+          icon: Icons.psychology,
+          title: 'Learning Style',
+          items: [
+            if (_experienceLevel.isNotEmpty)
+              _ReviewItem(
+                'Experience Level', 
+                _experienceLevels.firstWhere((e) => e['id'] == _experienceLevel)['title'] ?? '',
+                Icons.trending_up,
+              ),
+            if (_learningStyle.isNotEmpty)
+              _ReviewItem(
+                'Learning Style', 
+                _learningStyles.firstWhere((s) => s['id'] == _learningStyle)['title'] ?? '',
+                Icons.school,
+              ),
+          ],
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Schedule Card
+        _buildReviewCard(
+          icon: Icons.schedule,
+          title: 'Study Schedule',
+          items: [
+            if (_dailyTimeCommitment.isNotEmpty)
+              _ReviewItem(
+                'Daily Time', 
+                _dailyTimeOptions.firstWhere((t) => t['id'] == _dailyTimeCommitment)['title'] ?? '',
+                Icons.timer,
+              ),
+            if (_totalTimeframe.isNotEmpty)
+              _ReviewItem('Timeline', _generateTimelineString(), Icons.calendar_today),
+          ],
+        ),
+        
+        // Special Instructions Card (if any)
+        if (_customInstructionsController.text.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _buildSpecialInstructionsCard(),
+        ],
+        
+        const SizedBox(height: 24),
+        
+        // Ready indicator
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: colorScheme.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+            gradient: LinearGradient(
+              colors: [
+                colorScheme.primary.withOpacity(0.1),
+                colorScheme.primary.withOpacity(0.05),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: colorScheme.primary.withOpacity(0.2),
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              _buildReviewItem('Course Type', 
-                _selectedPath == 'scratch' ? 'Created from scratch' : 'Based on uploaded document'),
-              
-              if (_selectedPath == 'document' && _selectedFile != null)
-                _buildReviewItem('Document', _selectedFile!.name),
-              
-              _buildReviewItem('Topic', _topicController.text.isEmpty ? 'Auto-generated' : _topicController.text),
-              
-              if (_learningGoal.isNotEmpty)
-                _buildReviewItem('Learning Goal', 
-                  _learningGoals.firstWhere((g) => g['id'] == _learningGoal)['title'] ?? ''),
-              
-              if (_experienceLevel.isNotEmpty)
-                _buildReviewItem('Experience Level', 
-                  _experienceLevels.firstWhere((e) => e['id'] == _experienceLevel)['title'] ?? ''),
-              
-              if (_learningStyle.isNotEmpty)
-                _buildReviewItem('Learning Style', 
-                  _learningStyles.firstWhere((s) => s['id'] == _learningStyle)['title'] ?? ''),
-              
-              if (_dailyTimeCommitment.isNotEmpty)
-                _buildReviewItem('Daily Time', 
-                  _dailyTimeOptions.firstWhere((t) => t['id'] == _dailyTimeCommitment)['title'] ?? ''),
-              
-              if (_totalTimeframe.isNotEmpty)
-                _buildReviewItem('Timeline', _generateTimelineString()),
-              
-              if (_customInstructionsController.text.isNotEmpty)
-                _buildReviewItem('Special Instructions', _customInstructionsController.text),
+              Icon(
+                Icons.check_circle,
+                color: colorScheme.primary,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Everything looks perfect! Ready to generate your course.',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -1245,31 +1609,216 @@ class _CreateCourseScreenState extends State<CreateCourseScreen> with TickerProv
     );
   }
 
-  Widget _buildReviewItem(String label, String value) {
+  Widget _buildReviewCard({
+    required IconData icon,
+    required String title,
+    required List<_ReviewItem> items,
+  }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: colorScheme.outline.withOpacity(0.2),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: colorScheme.onSurface,
-              ),
+          // Card header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withOpacity(0.05),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: colorScheme.primary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
             ),
           ),
+          
+          // Card items
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: items.map((item) => _buildReviewCardItem(item)).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewCardItem(_ReviewItem item) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: colorScheme.outline.withOpacity(0.1),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            item.icon,
+            color: colorScheme.primary.withOpacity(0.7),
+            size: 18,
+          ),
+          const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              value,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurface.withOpacity(0.8),
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w500,
+                    color: colorScheme.onSurface.withOpacity(0.7),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item.value,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpecialInstructionsCard() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    // Parse the special instructions into individual preferences
+    final instructions = _customInstructionsController.text;
+    final preferences = instructions.split(', ').where((pref) => pref.trim().isNotEmpty).toList();
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: colorScheme.outline.withOpacity(0.2),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Card header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colorScheme.secondary.withOpacity(0.05),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: colorScheme.secondary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.tune,
+                    color: colorScheme.secondary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Special Instructions',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Preferences as chips
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: preferences.map((preference) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: colorScheme.secondary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: colorScheme.secondary.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Text(
+                    preference.trim(),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.secondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
           ),
         ],

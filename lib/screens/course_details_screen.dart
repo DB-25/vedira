@@ -517,6 +517,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
           final totalLessons = section.lessons.length;
           final completedLessons = chapterProgress?.completedLessons.length ?? 0;
           final totalQuizAttempts = chapterProgress?.quizAttempts.values.expand((attempts) => attempts).length ?? 0;
+          final totalFlashcardSessions = chapterProgress?.flashcardAttempts.values.expand((attempts) => attempts).length ?? 0;
           final progressPercentage = totalLessons > 0 ? (completedLessons / totalLessons) : 0.0;
 
           // Find next recommended action (lesson → flashcards → quiz)
@@ -526,13 +527,18 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
             final lesson = section.lessons[i];
             final isCompleted = chapterProgress?.completedLessons.contains(lesson.id) ?? false;
             final hasQuizAttempts = (chapterProgress?.quizAttempts[lesson.id]?.isNotEmpty ?? false);
+            final hasFlashcardAttempts = (chapterProgress?.flashcardAttempts[lesson.id]?.isNotEmpty ?? false);
             
             if (!isCompleted && lesson.generated) {
               nextAction = 'Continue with "${lesson.title}"';
               nextLessonIndex = i;
               break;
-            } else if (isCompleted && hasFlashcards && !hasQuizAttempts) {
+            } else if (isCompleted && hasFlashcards && !hasFlashcardAttempts) {
               nextAction = 'Reinforce learning with "${lesson.title}" flashcards';
+              nextLessonIndex = i;
+              break;
+            } else if (isCompleted && hasFlashcardAttempts && hasMcqs && !hasQuizAttempts) {
+              nextAction = 'Test your knowledge with "${lesson.title}" quiz';
               nextLessonIndex = i;
               break;
             } else if (isCompleted && hasMcqs && !hasQuizAttempts && !hasFlashcards) {
@@ -666,7 +672,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              '$completedLessons of $totalLessons lessons completed${totalQuizAttempts > 0 ? ' • $totalQuizAttempts quiz attempts' : ''}',
+                              '$completedLessons of $totalLessons lessons completed${totalQuizAttempts > 0 ? ' • $totalQuizAttempts quiz attempts' : ''}${totalFlashcardSessions > 0 ? ' • $totalFlashcardSessions flashcard sessions' : ''}',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: colorScheme.onSurface.withOpacity(0.7),
                               ),
@@ -781,22 +787,24 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
     final colorScheme = theme.colorScheme;
     final isCompleted = chapterProgress?.completedLessons.contains(lesson.id) ?? false;
     final quizAttempts = chapterProgress?.quizAttempts[lesson.id] ?? [];
+    final flashcardAttempts = chapterProgress?.flashcardAttempts[lesson.id] ?? [];
+    final hasFlashcardCompletion = flashcardAttempts.isNotEmpty;
     final bestQuizScore = quizAttempts.isNotEmpty 
         ? quizAttempts.map((a) => a.scorePercentage).reduce((a, b) => a > b ? a : b)
         : null;
     
     // Determine the current step in the learning path (lesson → flashcards → quiz)
     String currentStep = 'lesson';
-    if (isCompleted && hasFlashcards && !hasMcqs) {
-      currentStep = 'flashcards'; // If no quiz, go to flashcards after lesson
-    } else if (isCompleted && hasFlashcards && hasMcqs && quizAttempts.isEmpty) {
-      currentStep = 'flashcards'; // Do flashcards before quiz
-    } else if (isCompleted && hasFlashcards && hasMcqs && quizAttempts.isNotEmpty) {
-      currentStep = 'completed'; // All steps done
+    if (isCompleted && hasFlashcards && !hasFlashcardCompletion) {
+      currentStep = 'flashcards'; // Next step is flashcards
+    } else if (isCompleted && hasFlashcardCompletion && hasMcqs && quizAttempts.isEmpty) {
+      currentStep = 'quiz'; // Flashcards done, now do quiz
+    } else if (isCompleted && hasFlashcards && !hasMcqs && hasFlashcardCompletion) {
+      currentStep = 'completed'; // Only flashcards available and done
     } else if (isCompleted && !hasFlashcards && hasMcqs && quizAttempts.isEmpty) {
       currentStep = 'quiz'; // No flashcards, go straight to quiz
-    } else if (isCompleted && !hasFlashcards && hasMcqs && quizAttempts.isNotEmpty) {
-      currentStep = 'completed'; // No flashcards, quiz done
+    } else if (isCompleted && ((hasFlashcards && hasFlashcardCompletion) || !hasFlashcards) && hasMcqs && quizAttempts.isNotEmpty) {
+      currentStep = 'completed'; // All available steps done
     }
 
     return Container(
@@ -912,11 +920,13 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
                     theme: theme,
                     stepNumber: 2,
                     title: 'Study Flashcards',
-                    subtitle: isCompleted
-                        ? 'Reinforce your learning'
-                        : 'Complete lesson first',
+                    subtitle: hasFlashcardCompletion
+                        ? '${flashcardAttempts.length} session${flashcardAttempts.length > 1 ? 's' : ''} completed'
+                        : isCompleted
+                            ? 'Reinforce your learning'
+                            : 'Complete lesson first',
                     icon: Icons.style,
-                    isCompleted: false, // We don't track flashcard completion yet
+                    isCompleted: hasFlashcardCompletion,
                     isActive: currentStep == 'flashcards',
                     isEnabled: isCompleted,
                     onTap: isCompleted ? () {
@@ -927,7 +937,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen>
                 ],
 
                 if (hasMcqs) ...[
-                  _buildStepConnector(theme, isCompleted && (!hasFlashcards || currentStep != 'flashcards')),
+                  _buildStepConnector(theme, isCompleted && (!hasFlashcards || hasFlashcardCompletion)),
                   
                   // Step 3: Take Quiz (after flashcards if available)
                   _buildPathStep(
