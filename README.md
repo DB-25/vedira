@@ -16,21 +16,21 @@ Download VEDIRA on iOS through TestFlight:
 **TestFlight Link**: [Download on TestFlight](your-testflight-invite-link)
 
 *Scan the QR code below to download on iOS:*
-```
-[QR CODE FOR iOS TESTFLIGHT]
-```
+
+![QR Code for iPhone](https://github.com/user-attachments/assets/38666830-2ae4-4edf-94b1-3a7be3a68a45)
+
 
 ### **Android**
-Download the APK directly:
+*Scan the QR code below to download apk file for Andriod:*
 
-**APK Download**: [Download APK](your-apk-download-link)
+![Download APK](https://github.com/user-attachments/assets/75979375-e6bf-4be2-9417-b7d418d763f9)
 
-*Scan the QR code below to download on Android:*
-```
-[QR CODE FOR ANDROID APK]
-```
 
 **Note**: For Android installation, you may need to enable "Install from unknown sources" in your device settings.
+Steps to Enable Installation from Unknown Sources:
+   - Navigate to **Settings > Apps & notifications**.
+   - Tap on **Special app access**.
+   - Select **Allow Install apps from unknown sources**.
 
 ---
 
