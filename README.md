@@ -32,6 +32,12 @@ Steps to Enable Installation from Unknown Sources:
    - Tap on **Special app access**.
    - Select **Allow Install apps from unknown sources**.
 
+### **Sample Login Credentials**
+For testing purposes, you can use the following sample credentials:
+
+**Email**: `light1507041@gmail.com`  
+**Password**: `Test@123`
+
 ---
 
 ## ✨ **Features**
