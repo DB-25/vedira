@@ -519,19 +519,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Logger.i(_tag, 'User navigating to create course screen');
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const CreateCourseScreen()),
-          );
-        },
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('New Course'),
-        backgroundColor:
-            colorScheme.primary, // Use action color for primary action buttons
-        foregroundColor: AppConstants.paletteNeutral000,
+      floatingActionButton: Visibility(
+        visible: _currentCourses != null && _currentCourses!.isNotEmpty,
+        child: FloatingActionButton.extended(
+          onPressed: () {
+            Logger.i(_tag, 'User navigating to create course screen');
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => const CreateCourseScreen()),
+            );
+          },
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('New Course'),
+          backgroundColor: colorScheme
+              .primary, // Use action color for primary action buttons
+          foregroundColor: AppConstants.paletteNeutral000,
+        ),
       ),
     );
   }
@@ -685,7 +689,31 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
 
             const SizedBox(height: 32),
+            // Trust indicators
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildTrustIndicator(
+                  icon: Icons.flash_on,
+                  text: 'Quick Setup',
+                  color: AppConstants.palettePrimary,
+                ),
+                const SizedBox(width: 24),
+                _buildTrustIndicator(
+                  icon: Icons.psychology,
+                  text: 'AI Powered',
+                  color: AppConstants.paletteSecondary,
+                ),
+                const SizedBox(width: 24),
+                _buildTrustIndicator(
+                  icon: Icons.trending_up,
+                  text: 'Track Progress',
+                  color: AppConstants.paletteTertiary,
+                ),
+              ],
+            ),
 
+            const SizedBox(height: 32),
             // Enhanced call to action
             Container(
               width: double.infinity,
@@ -780,32 +808,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
 
             const SizedBox(height: 40),
-
-            // Trust indicators
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildTrustIndicator(
-                  icon: Icons.flash_on,
-                  text: 'Quick Setup',
-                  color: AppConstants.palettePrimary,
-                ),
-                const SizedBox(width: 24),
-                _buildTrustIndicator(
-                  icon: Icons.psychology,
-                  text: 'AI Powered',
-                  color: AppConstants.paletteSecondary,
-                ),
-                const SizedBox(width: 24),
-                _buildTrustIndicator(
-                  icon: Icons.trending_up,
-                  text: 'Track Progress',
-                  color: AppConstants.paletteTertiary,
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 32),
           ],
         ),
       ),

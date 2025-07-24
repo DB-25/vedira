@@ -814,6 +814,11 @@ class _LessonViewScreenState extends State<LessonViewScreen> {
         
         const SizedBox(height: 32),
         _buildCompletionSection(),
+        
+        // Add bottom padding to ensure completion buttons are visible when scrolling to bottom
+        SizedBox(
+          height: _shouldShowCompletionButton ? 150 : 100, // Extra space when completion button is shown
+        ),
       ],
     );
   }
