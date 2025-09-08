@@ -29,25 +29,6 @@ void main() async {
     Logger.i('App', 'Firebase initialized');
   } catch (e) {
     Logger.e('App', 'Firebase initialization failed', error: e);
-    // iOS fallback with explicit options (from GoogleService-Info.plist)
-    try {
-      if (Platform.isIOS) {
-        await Firebase.initializeApp(
-          options: const FirebaseOptions(
-            apiKey: 'AIzaSyByGsCO59plOxfkzD4YTZnVVTfiO_R6yaU',
-            appId: '1:808496191194:ios:00eba3faf67245019a37e3',
-            messagingSenderId: '808496191194',
-            projectId: 'gen-lang-client-0293742797',
-            storageBucket: 'gen-lang-client-0293742797.firebasestorage.app',
-            iosBundleId: 'com.vedira.app',
-          ),
-        );
-        firebaseReady = true;
-        Logger.i('App', 'Firebase initialized via explicit iOS options');
-      }
-    } catch (e2) {
-      Logger.e('App', 'Firebase explicit initialization failed', error: e2);
-    }
   }
 
   // Register background message handler only if Firebase is ready

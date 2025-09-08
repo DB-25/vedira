@@ -52,3 +52,8 @@ android/key.properties
 android/upload-keystore.jks
 *.jks
 *.keystore
+
+# Firebase config - keep out of VCS
+android/app/google-services.json
+ios/GoogleService-Info.plist
+ios/Runner/GoogleService-Info.plist
