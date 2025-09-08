@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/auth_service.dart';
 import 'utils/logger.dart';
 import 'utils/theme_manager.dart';
+import 'services/push_notification_service.dart';
 
 void main() async {
   // This ensures Flutter is initialized before we do anything else
@@ -16,6 +20,40 @@ void main() async {
   // Initialize logger
   Logger.setLevel(Logger.info);
   Logger.i('App', 'Starting Vedira app');
+
+  // Initialize Firebase
+  var firebaseReady = false;
+  try {
+    await Firebase.initializeApp();
+    firebaseReady = true;
+    Logger.i('App', 'Firebase initialized');
+  } catch (e) {
+    Logger.e('App', 'Firebase initialization failed', error: e);
+    // iOS fallback with explicit options (from GoogleService-Info.plist)
+    try {
+      if (Platform.isIOS) {
+        await Firebase.initializeApp(
+          options: const FirebaseOptions(
+            apiKey: 'AIzaSyByGsCO59plOxfkzD4YTZnVVTfiO_R6yaU',
+            appId: '1:808496191194:ios:00eba3faf67245019a37e3',
+            messagingSenderId: '808496191194',
+            projectId: 'gen-lang-client-0293742797',
+            storageBucket: 'gen-lang-client-0293742797.firebasestorage.app',
+            iosBundleId: 'com.vedira.app',
+          ),
+        );
+        firebaseReady = true;
+        Logger.i('App', 'Firebase initialized via explicit iOS options');
+      }
+    } catch (e2) {
+      Logger.e('App', 'Firebase explicit initialization failed', error: e2);
+    }
+  }
+
+  // Register background message handler only if Firebase is ready
+  if (firebaseReady) {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  }
 
   // Initialize SharedPreferences
   SharedPreferences prefs;
@@ -29,6 +67,16 @@ void main() async {
 
   // Create theme manager instance with pre-initialized preferences
   final themeManager = ThemeManager(prefs: prefs);
+
+  // Initialize FCM and register device token (fire-and-forget)
+  // Any failures are logged to console; token will be printed when available.
+  // Not awaited to avoid blocking app start.
+  if (firebaseReady) {
+    // ignore: unawaited_futures
+    PushNotificationService.initializeAndRegister();
+  } else {
+    Logger.e('App', 'Skipping FCM init because Firebase is not ready');
+  }
 
   runApp(
     ChangeNotifierProvider<ThemeManager>.value(

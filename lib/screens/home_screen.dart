@@ -14,6 +14,8 @@ import '../utils/logger.dart';
 import '../utils/theme_manager.dart';
 import '../widgets/course_card.dart';
 import '../widgets/theme_selector.dart';
+import 'package:flutter/services.dart';
+import '../services/push_notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final Future<List<Course>>? preloadedCourses;
@@ -272,6 +274,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       actions: [
         const ThemeSelector(),
         const SizedBox(width: 8),
+        _buildNotificationAction(),
+        const SizedBox(width: 8),
         PopupMenuButton<String>(
           icon: Container(
             padding: const EdgeInsets.all(8),
@@ -353,10 +357,68 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildNotificationAction() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return IconButton(
+      tooltip: 'Show FCM token',
+      icon: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: colorScheme.outline.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Icon(
+          Icons.notifications_outlined,
+          color: colorScheme.onSurface,
+          size: 20,
+        ),
+      ),
+      onPressed: () async {
+        final token = await PushNotificationService.getTokenOrFetch();
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (ctx) {
+            return AlertDialog(
+              title: const Text('FCM Device Token'),
+              content: SelectableText(
+                token ?? 'Token not available yet. Please try again shortly.',
+                style: theme.textTheme.bodyMedium,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () async {
+                    if (token != null) {
+                      await Clipboard.setData(ClipboardData(text: token));
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Token copied to clipboard')),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('Copy'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeManager = Provider.of<ThemeManager>(context);
-    final isDarkMode = themeManager.isDarkMode;
+    final isDarkMode = themeManager.isDarkMode; // ignore: unused_local_variable
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -376,7 +438,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               child: CustomScrollView(
                 slivers: [
                   _buildHomeAppBar(),
-                  SliverFillRemaining(
+                  const SliverFillRemaining(
                     child: Center(
                       child: CircularProgressIndicator(),
                     ),
@@ -477,8 +539,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
-                        if (index >= displayCourses.length)
+                        if (index >= displayCourses.length) {
                           return const SizedBox.shrink();
+                        }
 
                         final course = displayCourses[index];
                         final isStarred =
@@ -744,7 +807,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(50),
                     ),
-                    child: Icon(
+                    child: const Icon(
                       Icons.rocket_launch_rounded,
                       size: 32,
                       color: Colors.white,
@@ -783,7 +846,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           ),
                         );
                       },
-                      icon: Icon(Icons.add_rounded,
+                      icon: const Icon(Icons.add_rounded,
                           color: AppConstants.paletteAction),
                       label: Text(
                         'Create My First Course',

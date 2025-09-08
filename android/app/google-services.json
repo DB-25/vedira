@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "808496191194",
+    "project_id": "gen-lang-client-0293742797",
+    "storage_bucket": "gen-lang-client-0293742797.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:808496191194:android:c085d66876e190809a37e3",
+        "android_client_info": {
+          "package_name": "com.vedira.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCdxerOrBtJRPfu7u2c68FqFt9OV22m3bw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:808496191194:android:80361ee7365c25379a37e3",
+        "android_client_info": {
+          "package_name": "com.vedira.vedira"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCdxerOrBtJRPfu7u2c68FqFt9OV22m3bw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

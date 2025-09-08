@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import '../models/course.dart';
 import '../services/api_service.dart';
@@ -14,6 +13,7 @@ import '../utils/logger.dart';
 import '../utils/constants.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
+import '../services/push_notification_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -36,7 +36,7 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _pulseController;
   late AnimationController _rotationController;
   late AnimationController _particleController;
-  late Animation<double> _pulseAnimation;
+  late Animation<double> _pulseAnimation; // ignore: unused_field
   late Animation<double> _rotationAnimation;
 
   // Particle animation variables
@@ -136,6 +136,13 @@ class _SplashScreenState extends State<SplashScreen>
         if (!mounted) return;
       }
       Logger.i(_tag, 'Theme is now initialized');
+    }
+
+    // Ask for notification permission on startup (both platforms)
+    try {
+      await PushNotificationService.requestStartupPermissions();
+    } catch (e, st) {
+      Logger.w(_tag, 'Notification permission request failed', data: e, stackTrace: st);
     }
 
     // Check authentication status
